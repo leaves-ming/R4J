@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: rag
+  datasource:
+    url: ${RAG_STORAGE_METADATA_URL:jdbc:postgresql://localhost:5432/rag}
+    username: ${RAG_STORAGE_METADATA_USERNAME:rag}
+    password: ${RAG_STORAGE_METADATA_PASSWORD:rag}
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    enabled: true
+
+rag:
+  ingestion:
+    chunk-size: 1000
+    chunk-overlap: 200
+    batch-size: 100
+    max-llm-workers: 5
+  query:
+    dense-top-k: 20
+    sparse-top-k: 20
+    fusion-top-k: 10
+    rrf-k: 60
+  rerank:
+    enabled: false
+    provider: none
+    top-k: 5
+  ai:
+    chat:
+      provider: ${RAG_AI_CHAT_PROVIDER:none}
+      api-key: ${RAG_AI_CHAT_API_KEY:}
+      model-name: ${RAG_AI_CHAT_MODEL:}
+      base-url: ${RAG_AI_CHAT_BASE_URL:}
+    embedding:
+      provider: ${RAG_AI_EMBEDDING_PROVIDER:none}
+      api-key: ${RAG_AI_EMBEDDING_API_KEY:}
+      model-name: ${RAG_AI_EMBEDDING_MODEL:}
+      base-url: ${RAG_AI_EMBEDDING_BASE_URL:}
+  storage:
+    metadata:
+      url: ${RAG_STORAGE_METADATA_URL:jdbc:postgresql://localhost:5432/rag}
+      username: ${RAG_STORAGE_METADATA_USERNAME:rag}
+      password: ${RAG_STORAGE_METADATA_PASSWORD:rag}
+    search:
+      url: ${RAG_STORAGE_SEARCH_URL:http://localhost:9200}
+      chunk-index: ${RAG_STORAGE_SEARCH_INDEX:rag_chunks}
+      initialize-index-on-startup: ${RAG_STORAGE_SEARCH_INIT:true}
+    file:
+      base-path: ${RAG_STORAGE_FILE_BASE_PATH:./data/files}
+  observability:
+    trace-enabled: true
+    structured-logging: true
+  evaluation:
+    default-top-k: 10
+    evaluator-name: default-evaluator
