@@ -45,6 +45,7 @@ docker-compose.override.yml
 /.codex/
 /.specify/
 /specs
+/CLAUDE.md
 
 # Project-local generated docs
 /spec.md
