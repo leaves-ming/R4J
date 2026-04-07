@@ -1,24 +1,50 @@
-# 默认忽略的文件
+# IDE
+/.idea/
+*.iml
 /shelf/
-/.idea/workspace.xml
-# 基于编辑器的 HTTP 客户端请求
 /httpRequests/
-# Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
 
-/.agents
-/.specify
-spec.md
-/.idea
-/target
-*.iml
+# Build outputs
+/target/
+/build/
+/.gradle/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs and temp files
 *.log
+*.out
+*.err
+*.pid
 *.tmp
 *.bak
 *.swp
 *.swo
-*.DS_Store
-*.class
+hs_err_pid*
+replay_pid*
 
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+
+# Local runtime data
+/data/
+/logs/
+
+# OS files
+.DS_Store
+
+# Local agent/spec tooling
+/.agents/
 /.codex/
+/.specify/
+/specs
+
+# Project-local generated docs
+/spec.md
