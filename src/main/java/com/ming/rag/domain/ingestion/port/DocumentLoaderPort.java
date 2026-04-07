@@ -5,5 +5,7 @@ import com.ming.rag.domain.ingestion.SourceDocument;
 
 public interface DocumentLoaderPort {
 
+    SourceDocument storeAndPrepare(SourceDocument sourceDocument, byte[] fileBytes);
+
     ParsedDocument load(SourceDocument sourceDocument);
 }

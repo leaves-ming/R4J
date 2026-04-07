@@ -1,0 +1,35 @@
+{
+  "title": "RAG Overview",
+  "timezone": "browser",
+  "panels": [
+    {
+      "title": "Ingestion Requests",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_ingestion_requests_total[5m]))"
+        }
+      ]
+    },
+    {
+      "title": "Query Requests",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_query_requests_total[5m]))"
+        }
+      ]
+    },
+    {
+      "title": "Evaluation Runs",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_evaluation_run_total_total[5m]))"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

@@ -8,4 +8,6 @@ public interface ChunkStorePort {
     void deleteByDocumentId(String collectionId, String documentId);
 
     void upsert(String collectionId, List<Chunk> chunks);
+
+    int countVisibleChunks(String collectionId, String documentId);
 }

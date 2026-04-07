@@ -1,0 +1,14 @@
+[
+  {
+    "query": "hybrid retrieval",
+    "expectedChunkIds": ["f40a357796331ea81cf3e58c857476e0a52844f1e7aff71e4c80702dd41106fa_0000_65f678c2"],
+    "expectedSources": ["./data/files/f40a357796331ea81cf3e58c857476e0a52844f1e7aff71e4c80702dd41106fa-guide.md"],
+    "referenceAnswer": "Hybrid retrieval combines semantic matching and keyword matching."
+  },
+  {
+    "query": "semantic matching",
+    "expectedChunkIds": ["f40a357796331ea81cf3e58c857476e0a52844f1e7aff71e4c80702dd41106fa_0000_65f678c2"],
+    "expectedSources": ["./data/files/f40a357796331ea81cf3e58c857476e0a52844f1e7aff71e4c80702dd41106fa-guide.md"],
+    "referenceAnswer": "It improves recall by keeping lexical precision and dense understanding in one pipeline."
+  }
+]
