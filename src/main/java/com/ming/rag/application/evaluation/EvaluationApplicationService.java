@@ -1,7 +1,5 @@
 package com.ming.rag.application.evaluation;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ming.rag.bootstrap.config.RagProperties;
 import com.ming.rag.application.query.QueryCommand;
 import com.ming.rag.application.query.RetrievalPipelineService;
@@ -12,27 +10,22 @@ import com.ming.rag.domain.response.port.AnswerGeneratorPort;
 import com.ming.rag.observability.TraceContextAccessor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EvaluationApplicationService {
 
-    private static final Logger log = LoggerFactory.getLogger(EvaluationApplicationService.class);
-
     private final RetrievalPipelineService retrievalPipelineService;
     private final AnswerGeneratorPort answerGeneratorPort;
     private final EvaluationReportPort evaluationReportPort;
     private final RagProperties ragProperties;
-    private final ObjectMapper objectMapper;
+    private final EvalCaseLoader evalCaseLoader;
+    private final EvaluationObservationService evaluationObservationService;
     private final MeterRegistry meterRegistry;
     private final TraceContextAccessor traceContextAccessor;
 
@@ -41,7 +34,8 @@ public class EvaluationApplicationService {
             AnswerGeneratorPort answerGeneratorPort,
             EvaluationReportPort evaluationReportPort,
             RagProperties ragProperties,
-            ObjectMapper objectMapper,
+            EvalCaseLoader evalCaseLoader,
+            EvaluationObservationService evaluationObservationService,
             MeterRegistry meterRegistry,
             TraceContextAccessor traceContextAccessor
     ) {
@@ -49,7 +43,8 @@ public class EvaluationApplicationService {
         this.answerGeneratorPort = answerGeneratorPort;
         this.evaluationReportPort = evaluationReportPort;
         this.ragProperties = ragProperties;
-        this.objectMapper = objectMapper;
+        this.evalCaseLoader = evalCaseLoader;
+        this.evaluationObservationService = evaluationObservationService;
         this.meterRegistry = meterRegistry;
         this.traceContextAccessor = traceContextAccessor;
     }
@@ -63,10 +58,9 @@ public class EvaluationApplicationService {
         var started = System.nanoTime();
         var collectionId = command.collectionId() == null || command.collectionId().isBlank() ? "default" : command.collectionId();
         var topK = command.topK() == null || command.topK() <= 0 ? ragProperties.evaluation().defaultTopK() : command.topK();
-        meterRegistry.counter("rag.evaluation.run.total", "collectionId", collectionId).increment();
-        log.info("evaluation started traceId={} collectionId={} stage=evaluation_load_test_set", traceId, collectionId);
+        evaluationObservationService.onStarted(traceId, collectionId);
 
-        var testCases = loadTestCases(command.testSetPath());
+        var testCases = evalCaseLoader.load(command.testSetPath());
         var queryResults = new ArrayList<EvalQueryResult>();
         double hitCount = 0;
         double reciprocalRankSum = 0;
@@ -116,20 +110,11 @@ public class EvaluationApplicationService {
                 List.copyOf(queryResults)
         );
         evaluationReportPort.save(report, collectionId, totalElapsedMs);
-        log.info("evaluation completed traceId={} collectionId={} stage=evaluation_aggregate totalCases={}", traceId, collectionId, queryResults.size());
+        evaluationObservationService.onCompleted(traceId, collectionId, queryResults.size());
         return report;
     }
 
-    private List<EvalCase> loadTestCases(String testSetPath) {
-        try {
-            return objectMapper.readValue(Path.of(testSetPath).toFile(), new TypeReference<List<EvalCase>>() {
-            });
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to load evaluation test set", exception);
-        }
-    }
-
-    private Map<String, Object> score(EvalCase testCase, List<String> retrievedChunkIds, String generatedAnswer) {
+    private Map<String, Object> score(EvalCaseLoader.EvalCase testCase, List<String> retrievedChunkIds, String generatedAnswer) {
         var metrics = new LinkedHashMap<String, Object>();
         double hitRate = testCase.expectedChunkIds().stream().anyMatch(retrievedChunkIds::contains) ? 1.0d : 0.0d;
         metrics.put("hit_rate", hitRate);
@@ -148,13 +133,5 @@ public class EvaluationApplicationService {
 
     private double elapsedMs(long started) {
         return (System.nanoTime() - started) / 1_000_000.0d;
-    }
-
-    private record EvalCase(
-            String query,
-            List<String> expectedChunkIds,
-            List<String> expectedSources,
-            String referenceAnswer
-    ) {
     }
 }

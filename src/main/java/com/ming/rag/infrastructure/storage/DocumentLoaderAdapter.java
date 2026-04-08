@@ -15,29 +15,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class DocumentLoaderAdapter implements DocumentLoaderPort {
 
-    private final RagProperties ragProperties;
+    private final FileDocumentStore fileDocumentStore;
 
-    public DocumentLoaderAdapter(RagProperties ragProperties) {
-        this.ragProperties = ragProperties;
+    public DocumentLoaderAdapter(FileDocumentStore fileDocumentStore) {
+        this.fileDocumentStore = fileDocumentStore;
     }
 
     @Override
     public SourceDocument storeAndPrepare(SourceDocument sourceDocument, byte[] fileBytes) {
-        try {
-            var basePath = Path.of(ragProperties.storage().file().basePath());
-            Files.createDirectories(basePath);
-            var targetFile = basePath.resolve(sourceDocument.documentId() + "-" + sourceDocument.originalFileName());
-            Files.write(targetFile, fileBytes);
-            return new SourceDocument(
-                    sourceDocument.documentId(),
-                    sourceDocument.collectionId(),
-                    targetFile.toString(),
-                    sourceDocument.originalFileName(),
-                    sourceDocument.mediaType()
-            );
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to persist uploaded file", exception);
-        }
+        var targetFile = fileDocumentStore.store(sourceDocument.documentId(), sourceDocument.originalFileName(), fileBytes);
+        return new SourceDocument(
+                sourceDocument.documentId(),
+                sourceDocument.collectionId(),
+                targetFile.toString(),
+                sourceDocument.originalFileName(),
+                sourceDocument.mediaType()
+        );
     }
 
     @Override

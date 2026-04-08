@@ -3,8 +3,10 @@ package com.ming.rag.unit.evaluation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ming.rag.application.evaluation.EvalCaseLoader;
 import com.ming.rag.application.evaluation.EvaluationApplicationService;
 import com.ming.rag.application.evaluation.EvaluationCommand;
+import com.ming.rag.application.evaluation.EvaluationObservationService;
 import com.ming.rag.application.query.RetrievalPipelineService;
 import com.ming.rag.bootstrap.config.RagProperties;
 import com.ming.rag.domain.evaluation.EvalReport;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.ObjectProvider;
 
 class EvaluationUsesRetrievalTopKTest {
 
@@ -43,12 +46,14 @@ class EvaluationUsesRetrievalTopKTest {
                 Map.of()
         );
 
+        var objectMapper = new ObjectMapper();
         var service = new EvaluationApplicationService(
                 retrievalPipelineService,
                 answerGeneratorPort,
-                new EvaluationReportRepository(),
+                new EvaluationReportRepository(emptyProvider(), objectMapper),
                 properties(),
-                new ObjectMapper(),
+                new EvalCaseLoader(objectMapper),
+                new EvaluationObservationService(new SimpleMeterRegistry()),
                 new SimpleMeterRegistry(),
                 Mockito.mock(TraceContextAccessor.class)
         );
@@ -90,5 +95,29 @@ class EvaluationUsesRetrievalTopKTest {
                 new RagProperties.Observability(true, true),
                 new RagProperties.Evaluation(10, "default-evaluator")
         );
+    }
+
+    private ObjectProvider<org.springframework.jdbc.core.JdbcTemplate> emptyProvider() {
+        return new ObjectProvider<>() {
+            @Override
+            public org.springframework.jdbc.core.JdbcTemplate getObject(Object... args) {
+                return null;
+            }
+
+            @Override
+            public org.springframework.jdbc.core.JdbcTemplate getIfAvailable() {
+                return null;
+            }
+
+            @Override
+            public org.springframework.jdbc.core.JdbcTemplate getIfUnique() {
+                return null;
+            }
+
+            @Override
+            public org.springframework.jdbc.core.JdbcTemplate getObject() {
+                return null;
+            }
+        };
     }
 }

@@ -49,7 +49,7 @@ rag:
       password: ${RAG_STORAGE_METADATA_PASSWORD:rag}
     search:
       url: ${RAG_STORAGE_SEARCH_URL:http://localhost:9200}
-      chunk-index: ${RAG_STORAGE_SEARCH_INDEX:rag_chunks}
+      chunk-index: ${RAG_STORAGE_SEARCH_INDEX_NAME:chunk_record_v1}
       initialize-index-on-startup: ${RAG_STORAGE_SEARCH_INIT:true}
     file:
       base-path: ${RAG_STORAGE_FILE_BASE_PATH:./data/files}

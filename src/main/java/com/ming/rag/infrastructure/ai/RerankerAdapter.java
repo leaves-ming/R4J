@@ -11,17 +11,22 @@ import org.springframework.stereotype.Component;
 public class RerankerAdapter implements RerankPort {
 
     private final RagProperties ragProperties;
+    private final RerankerProvider rerankerProvider;
 
-    public RerankerAdapter(RagProperties ragProperties) {
+    public RerankerAdapter(RagProperties ragProperties, RerankerProvider rerankerProvider) {
         this.ragProperties = ragProperties;
+        this.rerankerProvider = rerankerProvider;
     }
 
     @Override
     public List<RankedResult> rerank(ProcessedQuery query, List<RankedResult> candidates, int topK) {
-        if (!ragProperties.rerank().enabled() || "none".equalsIgnoreCase(ragProperties.rerank().provider())) {
+        if (!rerankerProvider.isEnabled()) {
             return limit(candidates, topK);
         }
         try {
+            if (!rerankerProvider.isAvailable()) {
+                return limit(candidates, topK);
+            }
             return limit(candidates, topK);
         } catch (RuntimeException ignored) {
             return limit(candidates, topK);

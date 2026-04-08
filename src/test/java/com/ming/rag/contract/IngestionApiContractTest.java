@@ -44,6 +44,8 @@ class IngestionApiContractTest {
                 .andExpect(jsonPath("$.status").value("READY"))
                 .andExpect(jsonPath("$.skipped").value(false))
                 .andExpect(jsonPath("$.chunkCount").isNumber())
+                .andExpect(jsonPath("$.storage.metadata").value("postgresql"))
+                .andExpect(jsonPath("$.storage.search").value("elasticsearch"))
                 .andExpect(jsonPath("$.traceId").isString());
     }
 }

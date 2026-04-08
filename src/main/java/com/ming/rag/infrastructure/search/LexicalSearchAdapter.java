@@ -1,6 +1,5 @@
 package com.ming.rag.infrastructure.search;
 
-import com.ming.rag.domain.ingestion.Chunk;
 import com.ming.rag.domain.query.ProcessedQuery;
 import com.ming.rag.domain.query.RetrievalCandidate;
 import com.ming.rag.domain.query.port.LexicalSearchPort;
@@ -24,21 +23,23 @@ public class LexicalSearchAdapter implements LexicalSearchPort {
         if (query.normalizedQuery().toLowerCase(java.util.Locale.ROOT).contains("failsparse")) {
             throw new IllegalStateException("Simulated sparse failure");
         }
-        return searchChunkStore.findByCollection(collectionId).stream()
-                .filter(chunk -> matchesFilters(chunk, query.filters()))
-                .map(chunk -> toCandidate(chunk, keywordScore(chunk, query.keywords()), "sparse"))
+        return searchChunkStore.findRecordsByCollection(collectionId).stream()
+                .filter(record -> matchesFilters(record.chunk(), query.filters()))
+                .map(record -> toCandidate(record.chunk(), keywordScore(record.sparseTerms(), query.keywords()), "sparse"))
                 .filter(candidate -> candidate.score() > 0)
                 .sorted(Comparator.comparingDouble(RetrievalCandidate::score).reversed().thenComparing(RetrievalCandidate::chunkId))
                 .limit(topK)
                 .toList();
     }
 
-    private double keywordScore(Chunk chunk, List<String> keywords) {
-        var lower = chunk.content().toLowerCase(java.util.Locale.ROOT);
-        return keywords.stream().filter(lower::contains).count();
+    private double keywordScore(Map<String, Integer> sparseTerms, List<String> keywords) {
+        return keywords.stream()
+                .map(String::toLowerCase)
+                .mapToDouble(keyword -> sparseTerms.getOrDefault(keyword, 0))
+                .sum();
     }
 
-    private boolean matchesFilters(Chunk chunk, Map<String, Object> filters) {
+    private boolean matchesFilters(com.ming.rag.domain.ingestion.Chunk chunk, Map<String, Object> filters) {
         for (var entry : filters.entrySet()) {
             if ("collection".equals(entry.getKey())) {
                 continue;
@@ -57,7 +58,7 @@ public class LexicalSearchAdapter implements LexicalSearchPort {
         return true;
     }
 
-    private RetrievalCandidate toCandidate(Chunk chunk, double score, String matchedBy) {
+    private RetrievalCandidate toCandidate(com.ming.rag.domain.ingestion.Chunk chunk, double score, String matchedBy) {
         var metadata = new java.util.LinkedHashMap<String, Object>(chunk.metadata());
         metadata.put("document_id", chunk.documentId());
         metadata.putIfAbsent("source_path", chunk.metadata().get("source_path"));

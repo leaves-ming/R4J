@@ -2,7 +2,8 @@ package com.ming.rag.interfaces.http;
 
 import com.ming.rag.application.ingestion.IngestionApplicationService;
 import com.ming.rag.application.ingestion.IngestionCommand;
-import com.ming.rag.interfaces.http.dto.IngestionResponse;
+import com.ming.rag.interfaces.http.dto.IngestionDtos.IngestionResponse;
+import com.ming.rag.interfaces.http.dto.IngestionDtos.StorageInfo;
 import java.io.IOException;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,7 @@ public class IngestionController {
                 result.status(),
                 result.skipped(),
                 result.chunkCount(),
+                new StorageInfo("postgresql", "elasticsearch"),
                 result.traceId()
         );
     }

@@ -2,8 +2,8 @@ package com.ming.rag.interfaces.http;
 
 import com.ming.rag.application.query.QueryApplicationService;
 import com.ming.rag.application.query.QueryCommand;
-import com.ming.rag.domain.response.AnswerResponse;
-import com.ming.rag.interfaces.http.dto.QueryRequest;
+import com.ming.rag.interfaces.http.dto.QueryDtos.QueryRequest;
+import com.ming.rag.interfaces.http.dto.QueryDtos.QueryResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,8 +20,8 @@ public class QueryController {
     }
 
     @PostMapping
-    public AnswerResponse query(@RequestBody QueryRequest request) {
-        return queryApplicationService.query(new QueryCommand(
+    public QueryResponse query(@RequestBody QueryRequest request) {
+        var response = queryApplicationService.query(new QueryCommand(
                 request.query(),
                 request.collectionId(),
                 request.options(),
@@ -31,5 +31,12 @@ public class QueryController {
                 request.rerankTopK(),
                 Boolean.TRUE.equals(request.debug())
         ));
+        return new QueryResponse(
+                response.empty(),
+                response.answer(),
+                response.citations(),
+                response.traceId(),
+                response.debug()
+        );
     }
 }

@@ -11,6 +11,8 @@ import com.ming.rag.domain.query.port.LexicalSearchPort;
 import com.ming.rag.domain.query.port.RerankPort;
 import com.ming.rag.observability.TraceContextAccessor;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,8 +32,8 @@ public class RetrievalPipelineService {
     private final RrfFusionPolicy rrfFusionPolicy;
     private final RerankPort rerankPort;
     private final RagProperties ragProperties;
+    private final QueryObservationService queryObservationService;
     private final TraceContextAccessor traceContextAccessor;
-    private final MeterRegistry meterRegistry;
 
     public RetrievalPipelineService(
             QueryProcessorService queryProcessorService,
@@ -40,6 +42,7 @@ public class RetrievalPipelineService {
             RrfFusionPolicy rrfFusionPolicy,
             RerankPort rerankPort,
             RagProperties ragProperties,
+            QueryObservationService queryObservationService,
             TraceContextAccessor traceContextAccessor,
             MeterRegistry meterRegistry
     ) {
@@ -49,8 +52,8 @@ public class RetrievalPipelineService {
         this.rrfFusionPolicy = rrfFusionPolicy;
         this.rerankPort = rerankPort;
         this.ragProperties = ragProperties;
+        this.queryObservationService = queryObservationService;
         this.traceContextAccessor = traceContextAccessor;
-        this.meterRegistry = meterRegistry;
     }
 
     public RetrievalResult retrieve(QueryCommand command) {
@@ -59,8 +62,14 @@ public class RetrievalPipelineService {
         ProcessedQuery processedQuery = queryProcessorService.process(command.query(), collectionId, filters);
         var debug = new LinkedHashMap<String, Object>();
         var traceId = traceContextAccessor.currentTraceId();
-        meterRegistry.counter("rag.query.requests", "collectionId", collectionId).increment();
-        log.info("query retrieval started traceId={} collectionId={} stage=query_processing", traceId, collectionId);
+        queryObservationService.onRetrievalStarted(traceId, collectionId);
+
+        var denseStart = System.nanoTime();
+        var sparseStart = System.nanoTime();
+        var denseFuture = CompletableFuture.supplyAsync(() ->
+                denseSearchPort.search(collectionId, processedQuery, topK(command.denseTopK(), ragProperties.query().denseTopK())));
+        var sparseFuture = CompletableFuture.supplyAsync(() ->
+                lexicalSearchPort.search(collectionId, processedQuery, topK(command.sparseTopK(), ragProperties.query().sparseTopK())));
 
         List<RetrievalCandidate> denseCandidates = List.of();
         List<RetrievalCandidate> sparseCandidates = List.of();
@@ -68,28 +77,33 @@ public class RetrievalPipelineService {
         boolean sparseFailed = false;
 
         try {
-            denseCandidates = denseSearchPort.search(collectionId, processedQuery, topK(command.denseTopK(), ragProperties.query().denseTopK()));
-        } catch (RuntimeException exception) {
+            denseCandidates = denseFuture.join();
+            debug.put("dense_latency_ms", elapsedMs(denseStart));
+        } catch (CompletionException exception) {
             denseFailed = true;
-            debug.put("dense_failure", exception.getMessage());
+            debug.put("dense_failure", rootCauseMessage(exception));
+            debug.put("dense_latency_ms", elapsedMs(denseStart));
         }
 
         try {
-            sparseCandidates = lexicalSearchPort.search(collectionId, processedQuery, topK(command.sparseTopK(), ragProperties.query().sparseTopK()));
-        } catch (RuntimeException exception) {
+            sparseCandidates = sparseFuture.join();
+            debug.put("sparse_latency_ms", elapsedMs(sparseStart));
+        } catch (CompletionException exception) {
             sparseFailed = true;
-            debug.put("sparse_failure", exception.getMessage());
+            debug.put("sparse_failure", rootCauseMessage(exception));
+            debug.put("sparse_latency_ms", elapsedMs(sparseStart));
         }
 
         if (denseFailed && sparseFailed) {
-            meterRegistry.counter("rag.query.failed", "collectionId", collectionId).increment();
+            queryObservationService.onFailure(collectionId);
             throw new RetrievalFailedException("Both dense and sparse retrieval failed");
         }
 
+        var fusionStart = System.nanoTime();
         List<RankedResult> candidates;
         if (denseFailed || sparseFailed) {
-            debug.put("fallback", true);
-            meterRegistry.counter("rag.query.fallback", "collectionId", collectionId).increment();
+            debug.put("partialFallback", true);
+            queryObservationService.onFallback(collectionId);
             candidates = rankSinglePath(denseFailed ? sparseCandidates : denseCandidates);
         } else {
             candidates = rrfFusionPolicy.fuse(
@@ -97,10 +111,25 @@ public class RetrievalPipelineService {
                     sparseCandidates,
                     topK(command.fusionTopK(), ragProperties.query().fusionTopK())
             );
+            debug.put("partialFallback", false);
         }
+        debug.put("fusion_elapsed_ms", elapsedMs(fusionStart));
 
         var reranked = rerankPort.rerank(processedQuery, candidates, topK(command.rerankTopK(), ragProperties.rerank().topK()));
+        debug.put("rerank_applied", ragProperties.rerank().enabled() && !"none".equalsIgnoreCase(ragProperties.rerank().provider()));
         return new RetrievalResult(processedQuery, reranked, denseFailed || sparseFailed, traceId, Map.copyOf(debug));
+    }
+
+    private long elapsedMs(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    private String rootCauseMessage(Throwable throwable) {
+        var current = throwable;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current.getMessage();
     }
 
     private Map<String, Object> extractStructuredFilters(Map<String, Object> options) {

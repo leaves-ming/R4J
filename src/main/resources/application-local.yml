@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${RAG_STORAGE_METADATA_URL:jdbc:postgresql://localhost:5432/rag}
+    username: ${RAG_STORAGE_METADATA_USERNAME:rag}
+    password: ${RAG_STORAGE_METADATA_PASSWORD:rag}
+
+rag:
+  storage:
+    search:
+      url: ${RAG_STORAGE_SEARCH_URL:http://localhost:9200}
+      chunk-index: ${RAG_STORAGE_SEARCH_INDEX_NAME:chunk_record_v1}
+      initialize-index-on-startup: ${RAG_STORAGE_SEARCH_INIT:true}
+    file:
+      base-path: ${RAG_STORAGE_FILE_BASE_PATH:./data/files}

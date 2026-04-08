@@ -11,19 +11,15 @@ import com.ming.rag.domain.ingestion.port.DocumentLoaderPort;
 import com.ming.rag.domain.ingestion.port.DocumentRegistryPort;
 import com.ming.rag.domain.ingestion.port.EmbeddingPort;
 import com.ming.rag.domain.ingestion.port.LexicalEncodingPort;
+import com.ming.rag.infrastructure.persistence.IngestionJobRepository;
 import com.ming.rag.observability.TraceContextAccessor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IngestionApplicationService {
-
-    private static final Logger log = LoggerFactory.getLogger(IngestionApplicationService.class);
 
     private final DocumentIdPolicy documentIdPolicy;
     private final ChunkIdPolicy chunkIdPolicy;
@@ -35,6 +31,8 @@ public class IngestionApplicationService {
     private final LexicalEncodingPort lexicalEncodingPort;
     private final DocumentRegistryPort documentRegistryPort;
     private final ChunkStorePort chunkStorePort;
+    private final IngestionJobRepository ingestionJobRepository;
+    private final IngestionObservationService ingestionObservationService;
     private final IngestionStateMachine ingestionStateMachine;
     private final TraceContextAccessor traceContextAccessor;
     private final MeterRegistry meterRegistry;
@@ -50,6 +48,8 @@ public class IngestionApplicationService {
             LexicalEncodingPort lexicalEncodingPort,
             DocumentRegistryPort documentRegistryPort,
             ChunkStorePort chunkStorePort,
+            IngestionJobRepository ingestionJobRepository,
+            IngestionObservationService ingestionObservationService,
             IngestionStateMachine ingestionStateMachine,
             TraceContextAccessor traceContextAccessor,
             MeterRegistry meterRegistry
@@ -64,6 +64,8 @@ public class IngestionApplicationService {
         this.lexicalEncodingPort = lexicalEncodingPort;
         this.documentRegistryPort = documentRegistryPort;
         this.chunkStorePort = chunkStorePort;
+        this.ingestionJobRepository = ingestionJobRepository;
+        this.ingestionObservationService = ingestionObservationService;
         this.ingestionStateMachine = ingestionStateMachine;
         this.traceContextAccessor = traceContextAccessor;
         this.meterRegistry = meterRegistry;
@@ -80,11 +82,18 @@ public class IngestionApplicationService {
         var jobId = new JobId(UUID.randomUUID().toString());
         var collectionId = command.collectionId() == null || command.collectionId().isBlank() ? "default" : command.collectionId();
         var documentId = documentIdPolicy.generate(command.fileBytes()).value();
-        meterRegistry.counter("rag.ingestion.requests", "collectionId", collectionId).increment();
-        log.info("ingestion started traceId={} collectionId={} documentId={} stage=received", traceId, collectionId, documentId);
+        ingestionObservationService.onStarted(traceId, collectionId, documentId);
         if (documentRegistryPort.shouldSkip(collectionId, documentId) && !command.forceReingest()) {
-            meterRegistry.counter("rag.ingestion.skipped", "collectionId", collectionId).increment();
-            log.info("ingestion skipped traceId={} collectionId={} documentId={} stage=dedupe", traceId, collectionId, documentId);
+            ingestionJobRepository.markSkipped(
+                    jobId,
+                    collectionId,
+                    documentId,
+                    command.forceReingest(),
+                    command.chunkSizeOverride(),
+                    command.chunkOverlapOverride(),
+                    traceId
+            );
+            ingestionObservationService.onSkipped(traceId, collectionId, documentId);
             return new IngestionResult(jobId.value(), documentId, "READY", true, chunkStorePort.countVisibleChunks(collectionId, documentId), traceId);
         }
 
@@ -101,9 +110,18 @@ public class IngestionApplicationService {
 
         ingestionStateMachine.transition(com.ming.rag.domain.ingestion.DocumentStatus.RECEIVED, com.ming.rag.domain.ingestion.DocumentStatus.PROCESSING);
         documentRegistryPort.markProcessing(collectionId, documentId, sourceDocument.sourcePath(), sourceDocument.originalFileName(), sourceDocument.mediaType());
+        ingestionJobRepository.markProcessing(
+                jobId,
+                collectionId,
+                documentId,
+                command.forceReingest(),
+                command.chunkSizeOverride(),
+                command.chunkOverlapOverride(),
+                traceId
+        );
 
         try {
-            log.info("ingestion processing traceId={} collectionId={} documentId={} stage=load", traceId, collectionId, documentId);
+            ingestionObservationService.onProcessing(traceId, collectionId, documentId);
             var parsedDocument = documentLoaderPort.load(sourceDocument);
             var chunks = documentSplitterService.split(parsedDocument, command.chunkSizeOverride(), command.chunkOverlapOverride());
             var canonicalChunks = chunkRefinerService.refine(chunks);
@@ -125,29 +143,34 @@ public class IngestionApplicationService {
             chunkStorePort.deleteByDocumentId(collectionId, documentId);
             chunkStorePort.upsert(collectionId, finalChunks);
             documentRegistryPort.markReady(collectionId, documentId, finalChunks.size());
-            meterRegistry.counter("rag.ingestion.ready", "collectionId", collectionId).increment();
-            log.info(
-                    "ingestion completed traceId={} collectionId={} documentId={} stage=ready chunkCount={}",
-                    traceId,
+            ingestionJobRepository.markReady(
+                    jobId,
                     collectionId,
                     documentId,
-                    finalChunks.size()
+                    command.forceReingest(),
+                    command.chunkSizeOverride(),
+                    command.chunkOverlapOverride(),
+                    traceId
             );
+            ingestionObservationService.onReady(traceId, collectionId, documentId, finalChunks.size());
             return new IngestionResult(jobId.value(), documentId, "READY", false, finalChunks.size(), traceId);
         } catch (RuntimeException exception) {
             chunkStorePort.deleteByDocumentId(collectionId, documentId);
             documentRegistryPort.markFailed(collectionId, documentId, exception.getMessage());
-            meterRegistry.counter("rag.ingestion.failed", "collectionId", collectionId).increment();
-            log.error(
-                    "ingestion failed traceId={} collectionId={} documentId={} stage=failed reason={}",
-                    traceId,
+            ingestionJobRepository.markFailed(
+                    jobId,
                     collectionId,
                     documentId,
+                    command.forceReingest(),
+                    command.chunkSizeOverride(),
+                    command.chunkOverlapOverride(),
+                    traceId,
                     exception.getMessage()
             );
+            ingestionObservationService.onFailed(traceId, collectionId, documentId, exception.getMessage());
             throw new IngestionFailedException(
                     "Ingestion failed",
-                    Map.of("documentId", documentId, "collectionId", collectionId, "reason", exception.getMessage())
+                    ingestionObservationService.failureDetails(collectionId, documentId, exception.getMessage())
             );
         }
     }

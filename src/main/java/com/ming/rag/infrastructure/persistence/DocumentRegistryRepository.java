@@ -6,13 +6,49 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DocumentRegistryRepository implements DocumentRegistryPort {
 
+    private static final String UPSERT_PROCESSING = """
+            INSERT INTO document_registry (
+                collection_id, document_id, status, source_path, original_file_name, media_type, chunk_count, error_reason, created_at, updated_at, ready_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
+            ON CONFLICT (collection_id, document_id) DO UPDATE SET
+                status = EXCLUDED.status,
+                source_path = EXCLUDED.source_path,
+                original_file_name = EXCLUDED.original_file_name,
+                media_type = EXCLUDED.media_type,
+                updated_at = CURRENT_TIMESTAMP,
+                error_reason = NULL,
+                ready_at = NULL
+            """;
+    private static final String UPDATE_READY = """
+            UPDATE document_registry
+               SET status = ?, chunk_count = ?, error_reason = NULL, updated_at = CURRENT_TIMESTAMP, ready_at = CURRENT_TIMESTAMP
+             WHERE collection_id = ? AND document_id = ?
+            """;
+    private static final String UPDATE_FAILED = """
+            UPDATE document_registry
+               SET status = ?, error_reason = ?, updated_at = CURRENT_TIMESTAMP, ready_at = NULL
+             WHERE collection_id = ? AND document_id = ?
+            """;
+    private static final String SELECT_STATUS = """
+            SELECT status
+              FROM document_registry
+             WHERE collection_id = ? AND document_id = ?
+            """;
+
+    private final JdbcTemplate jdbcTemplate;
     private final Map<String, RegistryEntry> entries = new ConcurrentHashMap<>();
     private final AtomicBoolean failNextMarkReady = new AtomicBoolean(false);
+
+    public DocumentRegistryRepository(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
+        this.jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+    }
 
     @Override
     public boolean shouldSkip(String collectionId, String documentId) {
@@ -21,6 +57,10 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
 
     @Override
     public void markProcessing(String collectionId, String documentId, String sourcePath, String originalFileName, String mediaType) {
+        if (jdbcTemplate != null) {
+            jdbcTemplate.update(UPSERT_PROCESSING, collectionId, documentId, DocumentStatus.PROCESSING.name(), sourcePath, originalFileName, mediaType);
+            return;
+        }
         entries.put(key(collectionId, documentId), new RegistryEntry(
                 collectionId,
                 documentId,
@@ -41,12 +81,23 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
         if (failNextMarkReady.compareAndSet(true, false)) {
             throw new IllegalStateException("Simulated markReady failure");
         }
+        if (jdbcTemplate != null) {
+            var updated = jdbcTemplate.update(UPDATE_READY, DocumentStatus.READY.name(), chunkCount, collectionId, documentId);
+            if (updated == 0) {
+                throw new IllegalStateException("Registry entry does not exist");
+            }
+            return;
+        }
         var current = requiredEntry(collectionId, documentId);
         entries.put(key(collectionId, documentId), current.withStatus(DocumentStatus.READY, chunkCount, null, Instant.now()));
     }
 
     @Override
     public void markFailed(String collectionId, String documentId, String errorReason) {
+        if (jdbcTemplate != null) {
+            jdbcTemplate.update(UPDATE_FAILED, DocumentStatus.FAILED.name(), errorReason, collectionId, documentId);
+            return;
+        }
         var current = entries.get(key(collectionId, documentId));
         if (current == null) {
             return;
@@ -60,6 +111,10 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
     }
 
     public DocumentStatus statusOf(String collectionId, String documentId) {
+        if (jdbcTemplate != null) {
+            var statuses = jdbcTemplate.query(SELECT_STATUS, (rs, rowNum) -> DocumentStatus.valueOf(rs.getString("status")), collectionId, documentId);
+            return statuses.isEmpty() ? DocumentStatus.RECEIVED : statuses.getFirst();
+        }
         var entry = entries.get(key(collectionId, documentId));
         return entry == null ? DocumentStatus.RECEIVED : entry.status();
     }

@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:rag;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  flyway:
+    enabled: false
+
+rag:
+  storage:
+    metadata:
+      url: jdbc:h2:mem:rag
+      username: sa
+      password:
+    search:
+      url: http://localhost:9200
+      chunk-index: test_chunk_record_v1
+      initialize-index-on-startup: false
+    file:
+      base-path: target/test-files
