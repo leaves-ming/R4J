@@ -20,8 +20,8 @@ class RrfFusionPolicyTest {
                     new RagProperties.Model("none", null, null, null)
             ),
             new RagProperties.Storage(
-                    new RagProperties.Metadata("jdbc:postgresql://localhost:5432/rag", "rag", "rag"),
-                    new RagProperties.Search("http://localhost:9200", "rag_chunks", false),
+                    new RagProperties.Metadata("jdbc:postgresql://localhost:5432/rag", "rag", "rag", true),
+                    new RagProperties.Search("http://localhost:9200", "rag_chunks", false, true, false),
                     new RagProperties.File("./data/files")
             ),
             new RagProperties.Observability(true, true),
@@ -46,6 +46,17 @@ class RrfFusionPolicyTest {
         assertThat(results.get(0).rank()).isEqualTo(1);
         assertThat(results.get(1).chunkId()).isEqualTo("chunk-b");
         assertThat(results.get(1).rank()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldPreserveFusionTopKLimit() {
+        var dense = List.of(candidate("chunk-a", 0.9), candidate("chunk-b", 0.8), candidate("chunk-c", 0.7));
+        var sparse = List.of(candidate("chunk-c", 0.9), candidate("chunk-b", 0.8), candidate("chunk-a", 0.7));
+
+        var results = policy.fuse(dense, sparse, 2);
+
+        assertThat(results).hasSize(2);
+        assertThat(results).extracting("rank").containsExactly(1, 2);
     }
 
     private RetrievalCandidate candidate(String chunkId, double score) {

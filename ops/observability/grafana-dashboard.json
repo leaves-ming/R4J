@@ -1,6 +1,8 @@
 {
   "title": "RAG Overview",
   "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
   "panels": [
     {
       "title": "Ingestion Requests",
@@ -8,6 +10,15 @@
       "targets": [
         {
           "expr": "sum(rate(rag_ingestion_requests_total[5m]))"
+        }
+      ]
+    },
+    {
+      "title": "Ingestion Failures",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_ingestion_failed_total[5m]))"
         }
       ]
     },
@@ -21,6 +32,24 @@
       ]
     },
     {
+      "title": "Query Fallbacks",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_query_fallback_total[5m])) by (failedPath)"
+        }
+      ]
+    },
+    {
+      "title": "Query Responses",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_query_response_total[5m])) by (partialFallback, rerankApplied)"
+        }
+      ]
+    },
+    {
       "title": "Evaluation Runs",
       "type": "timeseries",
       "targets": [
@@ -28,8 +57,15 @@
           "expr": "sum(rate(rag_evaluation_run_total_total[5m]))"
         }
       ]
+    },
+    {
+      "title": "Evaluation Cases",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_evaluation_case_total_total[5m]))"
+        }
+      ]
     }
-  ],
-  "schemaVersion": 39,
-  "version": 1
+  ]
 }

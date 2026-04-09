@@ -1,9 +1,12 @@
 package com.ming.rag.infrastructure.persistence;
 
+import com.ming.rag.bootstrap.config.RagProperties;
 import com.ming.rag.domain.common.JobId;
 import com.ming.rag.domain.ingestion.DocumentStatus;
 import java.time.Instant;
+import java.sql.Types;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,7 +18,7 @@ public class IngestionJobRepository {
     private static final String UPSERT_JOB = """
             INSERT INTO ingestion_job (
                 job_id, collection_id, document_id, status, force_reingest, requested_chunk_size, requested_chunk_overlap, error_reason, trace_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (CAST(? AS UUID), ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (job_id) DO UPDATE SET
                 status = EXCLUDED.status,
                 error_reason = EXCLUDED.error_reason,
@@ -23,10 +26,12 @@ public class IngestionJobRepository {
             """;
 
     private final JdbcTemplate jdbcTemplate;
+    private final RagProperties ragProperties;
     private final Map<String, IngestionJobEntry> entries = new ConcurrentHashMap<>();
 
-    public IngestionJobRepository(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
+    public IngestionJobRepository(ObjectProvider<JdbcTemplate> jdbcTemplateProvider, RagProperties ragProperties) {
         this.jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        this.ragProperties = ragProperties;
     }
 
     public void markProcessing(
@@ -94,20 +99,22 @@ public class IngestionJobRepository {
             String traceId
     ) {
         if (jdbcTemplate != null) {
-            jdbcTemplate.update(
-                    UPSERT_JOB,
-                    jobId.value(),
-                    collectionId,
-                    documentId,
-                    status.name(),
-                    forceReingest,
-                    chunkSize == null ? 0 : chunkSize,
-                    chunkOverlap == null ? 0 : chunkOverlap,
-                    errorReason,
-                    traceId
-            );
+            jdbcTemplate.update(connection -> {
+                var statement = connection.prepareStatement(UPSERT_JOB);
+                statement.setObject(1, UUID.fromString(jobId.value()), Types.OTHER);
+                statement.setString(2, collectionId);
+                statement.setString(3, documentId);
+                statement.setString(4, status.name());
+                statement.setBoolean(5, forceReingest);
+                statement.setInt(6, chunkSize == null ? 0 : chunkSize);
+                statement.setInt(7, chunkOverlap == null ? 0 : chunkOverlap);
+                statement.setString(8, errorReason);
+                statement.setString(9, traceId);
+                return statement;
+            });
             return;
         }
+        requireFallbackAllowed();
 
         entries.put(jobId.value(), new IngestionJobEntry(
                 jobId.value(),
@@ -121,6 +128,12 @@ public class IngestionJobRepository {
                 traceId,
                 Instant.now()
         ));
+    }
+
+    private void requireFallbackAllowed() {
+        if (ragProperties.storage().metadata().required()) {
+            throw new IllegalStateException("JDBC ingestion job repository is required");
+        }
     }
 
     public record IngestionJobEntry(

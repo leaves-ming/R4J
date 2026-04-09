@@ -13,9 +13,12 @@ rag:
       url: jdbc:h2:mem:rag
       username: sa
       password:
+      required: false
     search:
       url: http://localhost:9200
       chunk-index: test_chunk_record_v1
       initialize-index-on-startup: false
+      required: false
+      dev-fallback-enabled: true
     file:
       base-path: target/test-files

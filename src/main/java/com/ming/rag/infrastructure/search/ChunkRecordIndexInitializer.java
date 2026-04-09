@@ -27,12 +27,11 @@ public class ChunkRecordIndexInitializer implements ApplicationRunner {
             return;
         }
 
-        if (searchBackendClient.ensureIndex()) {
-            log.info(
-                    "Search index initialization completed for index={} url={}",
-                    ragProperties.storage().search().chunkIndex(),
-                    ragProperties.storage().search().url()
-            );
-        }
+        searchBackendClient.ensureIndex();
+        log.info(
+                "Search index initialization completed for index={} url={}",
+                ragProperties.storage().search().chunkIndex(),
+                ragProperties.storage().search().url()
+        );
     }
 }

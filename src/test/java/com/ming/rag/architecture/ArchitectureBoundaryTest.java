@@ -1,11 +1,15 @@
 package com.ming.rag.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ming.rag.bootstrap.RagApplication;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @AnalyzeClasses(packages = "com.ming.rag", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureBoundaryTest {
@@ -27,4 +31,12 @@ class ArchitectureBoundaryTest {
             noClasses()
                     .that().resideInAPackage("com.ming.rag.interfaces..")
                     .should().dependOnClassesThat().resideInAPackage("com.ming.rag.infrastructure..");
+
+    @Test
+    void ragApplicationShouldNotExcludeDatasourceOrFlywayAutoConfiguration() {
+        var annotation = RagApplication.class.getAnnotation(SpringBootApplication.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.exclude()).isEmpty();
+    }
 }

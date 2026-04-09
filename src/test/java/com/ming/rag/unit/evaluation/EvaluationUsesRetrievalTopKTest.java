@@ -1,6 +1,7 @@
 package com.ming.rag.unit.evaluation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ming.rag.application.evaluation.EvalCaseLoader;
@@ -60,14 +61,18 @@ class EvaluationUsesRetrievalTopKTest {
         var testSet = Paths.get("target", "eval-unit.json");
         try {
             java.nio.file.Files.writeString(testSet, """
-                    [
-                      {
-                        "query": "q",
-                        "expectedChunkIds": ["chunk-topk"],
-                        "expectedSources": ["source.md"],
-                        "referenceAnswer": "answer"
-                      }
-                    ]
+                    {
+                      "version": "v1",
+                      "cases": [
+                        {
+                          "caseId": "case-1",
+                          "query": "q",
+                          "expectedChunkIds": ["chunk-topk"],
+                          "expectedSources": ["source.md"],
+                          "referenceAnswer": "answer"
+                        }
+                      ]
+                    }
                     """);
         } catch (java.io.IOException exception) {
             throw new RuntimeException(exception);
@@ -76,6 +81,28 @@ class EvaluationUsesRetrievalTopKTest {
         EvalReport report = service.evaluate(new EvaluationCommand(testSet.toString(), "default", 10));
 
         assertThat(report.queryResults().getFirst().retrievedTopKChunkIds()).containsExactly("chunk-topk");
+        assertThat(report.schemaVersion()).isEqualTo("v1");
+        assertThat(report.queryResults().getFirst().caseId()).isEqualTo("case-1");
+    }
+
+    @Test
+    void shouldRejectMissingVersionedCasesSchema() {
+        var loader = new EvalCaseLoader(new ObjectMapper());
+        var testSet = Paths.get("target", "eval-invalid.json");
+        try {
+            java.nio.file.Files.writeString(testSet, """
+                    {
+                      "version": "v1",
+                      "cases": []
+                    }
+                    """);
+        } catch (java.io.IOException exception) {
+            throw new RuntimeException(exception);
+        }
+
+        assertThatThrownBy(() -> loader.load(testSet.toString()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cases");
     }
 
     private RagProperties properties() {
@@ -88,8 +115,8 @@ class EvaluationUsesRetrievalTopKTest {
                         new RagProperties.Model("none", null, null, null)
                 ),
                 new RagProperties.Storage(
-                        new RagProperties.Metadata("jdbc:postgresql://localhost:5432/rag", "rag", "rag"),
-                        new RagProperties.Search("http://localhost:9200", "rag_chunks", false),
+                        new RagProperties.Metadata("jdbc:postgresql://localhost:5432/rag", "rag", "rag", true),
+                        new RagProperties.Search("http://localhost:9200", "rag_chunks", false, true, false),
                         new RagProperties.File("./data/files")
                 ),
                 new RagProperties.Observability(true, true),

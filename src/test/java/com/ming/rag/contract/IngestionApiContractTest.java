@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ming.rag.bootstrap.RagApplication;
+import com.ming.rag.integration.support.IntegrationTestContainers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -18,9 +19,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "rag.storage.file.base-path=target/test-contract-files",
-        "rag.storage.search.initialize-index-on-startup=false"
+        "rag.storage.search.initialize-index-on-startup=true",
+        "rag.storage.search.dev-fallback-enabled=false"
 })
-class IngestionApiContractTest {
+class IngestionApiContractTest extends IntegrationTestContainers {
 
     @Autowired
     private MockMvc mockMvc;

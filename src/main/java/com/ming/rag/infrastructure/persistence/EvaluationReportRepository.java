@@ -94,6 +94,7 @@ public class EvaluationReportRepository implements EvaluationReportPort {
                     rs.getObject("run_id", java.util.UUID.class).toString(),
                     rs.getString("evaluator_name"),
                     rs.getString("test_set_path"),
+                    "v1",
                     rs.getDouble("total_elapsed_ms"),
                     objectMapper.readValue(rs.getString("aggregate_metrics_json"), Map.class),
                     java.util.List.of()

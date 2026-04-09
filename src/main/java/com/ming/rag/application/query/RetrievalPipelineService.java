@@ -78,20 +78,20 @@ public class RetrievalPipelineService {
 
         try {
             denseCandidates = denseFuture.join();
-            debug.put("dense_latency_ms", elapsedMs(denseStart));
+            debug.put("denseLatencyMs", elapsedMs(denseStart));
         } catch (CompletionException exception) {
             denseFailed = true;
-            debug.put("dense_failure", rootCauseMessage(exception));
-            debug.put("dense_latency_ms", elapsedMs(denseStart));
+            debug.put("denseFailure", rootCauseMessage(exception));
+            debug.put("denseLatencyMs", elapsedMs(denseStart));
         }
 
         try {
             sparseCandidates = sparseFuture.join();
-            debug.put("sparse_latency_ms", elapsedMs(sparseStart));
+            debug.put("sparseLatencyMs", elapsedMs(sparseStart));
         } catch (CompletionException exception) {
             sparseFailed = true;
-            debug.put("sparse_failure", rootCauseMessage(exception));
-            debug.put("sparse_latency_ms", elapsedMs(sparseStart));
+            debug.put("sparseFailure", rootCauseMessage(exception));
+            debug.put("sparseLatencyMs", elapsedMs(sparseStart));
         }
 
         if (denseFailed && sparseFailed) {
@@ -103,7 +103,7 @@ public class RetrievalPipelineService {
         List<RankedResult> candidates;
         if (denseFailed || sparseFailed) {
             debug.put("partialFallback", true);
-            queryObservationService.onFallback(collectionId);
+            queryObservationService.onFallback(collectionId, denseFailed ? "dense" : "sparse");
             candidates = rankSinglePath(denseFailed ? sparseCandidates : denseCandidates);
         } else {
             candidates = rrfFusionPolicy.fuse(
@@ -113,10 +113,17 @@ public class RetrievalPipelineService {
             );
             debug.put("partialFallback", false);
         }
-        debug.put("fusion_elapsed_ms", elapsedMs(fusionStart));
+        debug.put("fusionElapsedMs", elapsedMs(fusionStart));
 
+        var rerankStart = System.nanoTime();
         var reranked = rerankPort.rerank(processedQuery, candidates, topK(command.rerankTopK(), ragProperties.rerank().topK()));
-        debug.put("rerank_applied", ragProperties.rerank().enabled() && !"none".equalsIgnoreCase(ragProperties.rerank().provider()));
+        var rerankEnabled = ragProperties.rerank().enabled() && !"none".equalsIgnoreCase(ragProperties.rerank().provider());
+        debug.put("rerankApplied", rerankEnabled);
+        debug.put("rerankProvider", ragProperties.rerank().provider());
+        debug.put("rerankLatencyMs", elapsedMs(rerankStart));
+        if (rerankEnabled && reranked.equals(candidates.stream().limit(reranked.size()).toList())) {
+            debug.put("rerankFallbackReason", "provider_unavailable_or_no_change");
+        }
         return new RetrievalResult(processedQuery, reranked, denseFailed || sparseFailed, traceId, Map.copyOf(debug));
     }
 

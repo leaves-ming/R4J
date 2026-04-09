@@ -33,10 +33,12 @@ public class EvaluationController {
                 report.runId(),
                 report.evaluatorName(),
                 report.testSetPath(),
+                report.schemaVersion(),
                 report.totalElapsedMs(),
                 report.aggregateMetrics(),
                 report.queryResults().stream()
                         .map(item -> new EvaluationQueryResult(
+                                item.caseId(),
                                 item.query(),
                                 item.retrievedTopKChunkIds(),
                                 item.generatedAnswer(),

@@ -35,4 +35,24 @@ class QueryProcessorTest {
                 .isInstanceOf(InvalidArgumentException.class)
                 .hasMessageContaining("collection filter conflicts");
     }
+
+    @Test
+    void shouldRejectFilterOnlyQueriesWithoutNaturalLanguage() {
+        assertThatThrownBy(() -> service.process("collection:default tags:rag", "default", Map.of()))
+                .isInstanceOf(InvalidArgumentException.class)
+                .hasMessageContaining("natural language content");
+    }
+
+    @Test
+    void shouldPreferStructuredFiltersOverSameNamedTextFilters() {
+        var result = service.process(
+                "doc_type:pdf source:guide.md explain hybrid retrieval",
+                "default",
+                Map.of("doc_type", "md", "source_path", "docs/guide.md")
+        );
+
+        assertThat(result.filters())
+                .containsEntry("doc_type", "md")
+                .containsEntry("source_path", "docs/guide.md");
+    }
 }

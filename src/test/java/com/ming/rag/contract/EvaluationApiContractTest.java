@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ming.rag.bootstrap.RagApplication;
+import com.ming.rag.integration.support.IntegrationTestContainers;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,9 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "rag.storage.file.base-path=target/test-eval-contract-files",
-        "rag.storage.search.initialize-index-on-startup=false"
+        "rag.storage.search.initialize-index-on-startup=true",
+        "rag.storage.search.dev-fallback-enabled=false"
 })
-class EvaluationApiContractTest {
+class EvaluationApiContractTest extends IntegrationTestContainers {
 
     @Autowired
     private MockMvc mockMvc;
@@ -45,14 +47,18 @@ class EvaluationApiContractTest {
         var path = Path.of("target/test-eval-contract-files/golden-set.json");
         Files.createDirectories(path.getParent());
         Files.writeString(path, """
-                [
-                  {
-                    "query": "hybrid retrieval",
-                    "expectedChunkIds": ["%s"],
-                    "expectedSources": ["target/test-eval-contract-files/eval-contract.md"],
-                    "referenceAnswer": "hybrid retrieval combines semantic and keyword matching"
-                  }
-                ]
+                {
+                  "version": "v1",
+                  "cases": [
+                    {
+                      "caseId": "eval-contract-1",
+                      "query": "hybrid retrieval",
+                      "expectedChunkIds": ["%s"],
+                      "expectedSources": ["target/test-eval-contract-files/eval-contract.md"],
+                      "referenceAnswer": "hybrid retrieval combines semantic and keyword matching"
+                    }
+                  ]
+                }
                 """.formatted(chunkId));
         testSetPath = path.toString();
     }
@@ -73,8 +79,36 @@ class EvaluationApiContractTest {
                 .andExpect(jsonPath("$.runId").isString())
                 .andExpect(jsonPath("$.evaluatorName").value("default-evaluator"))
                 .andExpect(jsonPath("$.testSetPath").value(testSetPath))
+                .andExpect(jsonPath("$.schemaVersion").value("v1"))
                 .andExpect(jsonPath("$.totalElapsedMs").isNumber())
                 .andExpect(jsonPath("$.aggregateMetrics").exists())
+                .andExpect(jsonPath("$.queryResults[0].caseId").value("eval-contract-1"))
                 .andExpect(jsonPath("$.queryResults[0].query").isString());
+    }
+
+    @Test
+    void shouldRejectInvalidEvaluationSchema() throws Exception {
+        var path = Path.of("target/test-eval-contract-files/invalid-golden-set.json");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, """
+                {
+                  "version": "v1",
+                  "cases": []
+                }
+                """);
+
+        mockMvc.perform(post("/api/v1/evaluations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "testSetPath": "%s",
+                                  "collectionId": "default",
+                                  "topK": 10
+                                }
+                                """.formatted(path)))
+                .andExpect(status().is5xxServerError())
+                .andExpect(header().exists("X-Trace-Id"))
+                .andExpect(jsonPath("$.errorCode").value("PROVIDER_FAILURE"))
+                .andExpect(jsonPath("$.traceId").isString());
     }
 }

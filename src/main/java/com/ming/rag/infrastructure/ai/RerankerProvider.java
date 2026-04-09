@@ -1,6 +1,7 @@
 package com.ming.rag.infrastructure.ai;
 
 import com.ming.rag.bootstrap.config.RagProperties;
+import com.ming.rag.domain.common.exception.ProviderFailureException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -30,5 +31,11 @@ public class RerankerProvider {
 
     public String providerName() {
         return ragProperties.rerank().provider();
+    }
+
+    public void requireAvailable() {
+        if (!isAvailable()) {
+            throw new ProviderFailureException("Rerank provider is enabled but required dependencies are unavailable");
+        }
     }
 }

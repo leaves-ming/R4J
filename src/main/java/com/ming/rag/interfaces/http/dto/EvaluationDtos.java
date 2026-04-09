@@ -16,6 +16,7 @@ public final class EvaluationDtos {
     }
 
     public record EvaluationQueryResult(
+            String caseId,
             String query,
             List<String> retrievedTopKChunkIds,
             String generatedAnswer,
@@ -28,6 +29,7 @@ public final class EvaluationDtos {
             String runId,
             String evaluatorName,
             String testSetPath,
+            String schemaVersion,
             double totalElapsedMs,
             Map<String, Object> aggregateMetrics,
             List<EvaluationQueryResult> queryResults

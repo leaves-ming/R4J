@@ -15,6 +15,7 @@ import com.ming.rag.infrastructure.persistence.IngestionJobRepository;
 import com.ming.rag.observability.TraceContextAccessor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.util.LinkedHashMap;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -136,7 +137,7 @@ public class IngestionApplicationService {
                             chunk.collectionId(),
                             chunk.chunkIndex(),
                             chunk.content(),
-                            chunk.metadata()
+                            canonicalMetadata(chunk)
                     ))
                     .toList();
 
@@ -173,5 +174,14 @@ public class IngestionApplicationService {
                     ingestionObservationService.failureDetails(collectionId, documentId, exception.getMessage())
             );
         }
+    }
+
+    private LinkedHashMap<String, Object> canonicalMetadata(Chunk chunk) {
+        var metadata = new LinkedHashMap<String, Object>(chunk.metadata());
+        metadata.put("document_id", chunk.documentId());
+        metadata.put("chunk_index", chunk.chunkIndex());
+        metadata.putIfAbsent("source_path", metadata.getOrDefault("source_path", ""));
+        metadata.putIfAbsent("doc_type", metadata.getOrDefault("doc_type", "text"));
+        return metadata;
     }
 }

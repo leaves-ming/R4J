@@ -23,8 +23,9 @@ public class QueryObservationService {
         log.info("query retrieval started traceId={} collectionId={} stage=query_processing", traceId, collectionId);
     }
 
-    public void onFallback(String collectionId) {
-        meterRegistry.counter(MetricNames.QUERY_FALLBACK, "collectionId", collectionId).increment();
+    public void onFallback(String collectionId, String failedPath) {
+        meterRegistry.counter(MetricNames.QUERY_FALLBACK, "collectionId", collectionId, "failedPath", failedPath).increment();
+        log.warn("query fallback collectionId={} failedPath={} stage=retrieval_fallback", collectionId, failedPath);
     }
 
     public void onFailure(String collectionId) {
@@ -36,6 +37,13 @@ public class QueryObservationService {
     }
 
     public void onResponseBuilt(String traceId, int citations, Map<String, Object> debug) {
+        meterRegistry.counter(
+                MetricNames.QUERY_RESPONSE,
+                "partialFallback",
+                String.valueOf(debug.getOrDefault("partialFallback", false)),
+                "rerankApplied",
+                String.valueOf(debug.getOrDefault("rerankApplied", false))
+        ).increment();
         log.info("query completed traceId={} stage=response_build citations={} debugKeys={}", traceId, citations, debug.keySet());
     }
 }

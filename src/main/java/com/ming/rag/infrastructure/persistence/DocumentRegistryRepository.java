@@ -1,5 +1,6 @@
 package com.ming.rag.infrastructure.persistence;
 
+import com.ming.rag.bootstrap.config.RagProperties;
 import com.ming.rag.domain.ingestion.DocumentStatus;
 import com.ming.rag.domain.ingestion.port.DocumentRegistryPort;
 import java.time.Instant;
@@ -43,11 +44,13 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
             """;
 
     private final JdbcTemplate jdbcTemplate;
+    private final RagProperties ragProperties;
     private final Map<String, RegistryEntry> entries = new ConcurrentHashMap<>();
     private final AtomicBoolean failNextMarkReady = new AtomicBoolean(false);
 
-    public DocumentRegistryRepository(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
+    public DocumentRegistryRepository(ObjectProvider<JdbcTemplate> jdbcTemplateProvider, RagProperties ragProperties) {
         this.jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        this.ragProperties = ragProperties;
     }
 
     @Override
@@ -61,6 +64,7 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
             jdbcTemplate.update(UPSERT_PROCESSING, collectionId, documentId, DocumentStatus.PROCESSING.name(), sourcePath, originalFileName, mediaType);
             return;
         }
+        requireFallbackAllowed("markProcessing");
         entries.put(key(collectionId, documentId), new RegistryEntry(
                 collectionId,
                 documentId,
@@ -88,6 +92,7 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
             }
             return;
         }
+        requireFallbackAllowed("markReady");
         var current = requiredEntry(collectionId, documentId);
         entries.put(key(collectionId, documentId), current.withStatus(DocumentStatus.READY, chunkCount, null, Instant.now()));
     }
@@ -98,6 +103,7 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
             jdbcTemplate.update(UPDATE_FAILED, DocumentStatus.FAILED.name(), errorReason, collectionId, documentId);
             return;
         }
+        requireFallbackAllowed("markFailed");
         var current = entries.get(key(collectionId, documentId));
         if (current == null) {
             return;
@@ -115,6 +121,7 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
             var statuses = jdbcTemplate.query(SELECT_STATUS, (rs, rowNum) -> DocumentStatus.valueOf(rs.getString("status")), collectionId, documentId);
             return statuses.isEmpty() ? DocumentStatus.RECEIVED : statuses.getFirst();
         }
+        requireFallbackAllowed("statusOf");
         var entry = entries.get(key(collectionId, documentId));
         return entry == null ? DocumentStatus.RECEIVED : entry.status();
     }
@@ -133,6 +140,12 @@ public class DocumentRegistryRepository implements DocumentRegistryPort {
 
     private String key(String collectionId, String documentId) {
         return collectionId + "::" + documentId;
+    }
+
+    private void requireFallbackAllowed(String operation) {
+        if (ragProperties.storage().metadata().required()) {
+            throw new IllegalStateException("JDBC metadata repository is required for operation: " + operation);
+        }
     }
 
     private record RegistryEntry(

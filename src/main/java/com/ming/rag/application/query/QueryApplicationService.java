@@ -5,6 +5,7 @@ import com.ming.rag.domain.response.AnswerResponse;
 import com.ming.rag.domain.response.port.AnswerGeneratorPort;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.util.LinkedHashMap;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,7 +39,19 @@ public class QueryApplicationService {
             return new AnswerResponse(true, "", java.util.List.of(), retrievalResult.traceId(), retrievalResult.debug());
         }
         var response = answerGeneratorPort.generate(command.query(), retrievalResult.topKResults(), retrievalResult.traceId(), command.debug());
-        queryObservationService.onResponseBuilt(retrievalResult.traceId(), response.citations().size(), response.debug());
-        return response;
+        var mergedDebug = mergeDebug(retrievalResult.debug(), response.debug());
+        queryObservationService.onResponseBuilt(retrievalResult.traceId(), response.citations().size(), mergedDebug);
+        return new AnswerResponse(response.empty(), response.answer(), response.citations(), response.traceId(), mergedDebug);
+    }
+
+    private java.util.Map<String, Object> mergeDebug(java.util.Map<String, Object> retrievalDebug, java.util.Map<String, Object> answerDebug) {
+        var merged = new LinkedHashMap<String, Object>();
+        if (retrievalDebug != null) {
+            merged.putAll(retrievalDebug);
+        }
+        if (answerDebug != null) {
+            merged.putAll(answerDebug);
+        }
+        return java.util.Map.copyOf(merged);
     }
 }

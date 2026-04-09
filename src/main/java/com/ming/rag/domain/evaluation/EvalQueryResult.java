@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public record EvalQueryResult(
+        String caseId,
         String query,
         List<String> retrievedTopKChunkIds,
         String generatedAnswer,

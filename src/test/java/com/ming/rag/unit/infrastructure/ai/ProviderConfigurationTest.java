@@ -62,6 +62,14 @@ class ProviderConfigurationTest {
         assertThat(embeddingProvider.require()).isSameAs(embeddingModel);
     }
 
+    @Test
+    void shouldDefaultLegacySearchConstructorToRequiredWithoutFallback() {
+        var search = new RagProperties.Search("http://localhost:9200", "chunk_record_v1", true, true, false);
+
+        assertThat(search.required()).isTrue();
+        assertThat(search.devFallbackEnabled()).isFalse();
+    }
+
     private RagProperties properties(String chatProvider, String embeddingProvider, boolean rerankEnabled, String rerankProvider) {
         return new RagProperties(
                 new RagProperties.Ingestion(1000, 200, 100, 5),
@@ -72,8 +80,8 @@ class ProviderConfigurationTest {
                         new RagProperties.Model(embeddingProvider, "key", "embedding-model", null)
                 ),
                 new RagProperties.Storage(
-                        new RagProperties.Metadata("jdbc:postgresql://localhost:5432/rag", "rag", "rag"),
-                        new RagProperties.Search("http://localhost:9200", "chunk_record_v1", false),
+                        new RagProperties.Metadata("jdbc:postgresql://localhost:5432/rag", "rag", "rag", true),
+                        new RagProperties.Search("http://localhost:9200", "chunk_record_v1", false, true, false),
                         new RagProperties.File("./data/files")
                 ),
                 new RagProperties.Observability(true, true),

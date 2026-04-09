@@ -1,6 +1,7 @@
 package com.ming.rag.bootstrap.config;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -40,6 +41,10 @@ public record RagProperties(
             @NotBlank String provider,
             @Min(1) int topK
     ) {
+        @AssertTrue(message = "rerank.provider must not be none when rerank is enabled")
+        public boolean hasValidProviderWhenEnabled() {
+            return !enabled || !isDisabled(provider);
+        }
     }
 
     public record Ai(
@@ -54,6 +59,10 @@ public record RagProperties(
             String modelName,
             String baseUrl
     ) {
+        @AssertTrue(message = "enabled AI providers must define apiKey and modelName")
+        public boolean hasCredentialsWhenEnabled() {
+            return isDisabled(provider) || (hasText(apiKey) && hasText(modelName));
+        }
     }
 
     public record Storage(
@@ -64,17 +73,28 @@ public record RagProperties(
     }
 
     public record Metadata(
-            @NotBlank String url,
-            @NotBlank String username,
-            @NotBlank String password
+            String url,
+            String username,
+            String password,
+            boolean required
     ) {
+        @AssertTrue(message = "rag.storage.metadata requires url, username and password when enabled")
+        public boolean hasRequiredConnectionProperties() {
+            return !required || (hasText(url) && hasText(username) && hasText(password));
+        }
     }
 
     public record Search(
-            @NotBlank String url,
-            @NotBlank String chunkIndex,
-            boolean initializeIndexOnStartup
+            String url,
+            String chunkIndex,
+            boolean initializeIndexOnStartup,
+            boolean required,
+            boolean devFallbackEnabled
     ) {
+        @AssertTrue(message = "rag.storage.search requires url and chunkIndex when enabled")
+        public boolean hasRequiredConnectionProperties() {
+            return !required || (hasText(url) && hasText(chunkIndex));
+        }
     }
 
     public record File(
@@ -92,5 +112,13 @@ public record RagProperties(
             @Min(1) int defaultTopK,
             @NotBlank String evaluatorName
     ) {
+    }
+
+    private static boolean isDisabled(String provider) {
+        return !hasText(provider) || "none".equalsIgnoreCase(provider);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

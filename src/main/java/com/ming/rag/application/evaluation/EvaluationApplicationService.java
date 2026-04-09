@@ -60,11 +60,13 @@ public class EvaluationApplicationService {
         var topK = command.topK() == null || command.topK() <= 0 ? ragProperties.evaluation().defaultTopK() : command.topK();
         evaluationObservationService.onStarted(traceId, collectionId);
 
-        var testCases = evalCaseLoader.load(command.testSetPath());
+        var testSet = evalCaseLoader.load(command.testSetPath());
+        var testCases = testSet.cases();
         var queryResults = new ArrayList<EvalQueryResult>();
         double hitCount = 0;
         double reciprocalRankSum = 0;
         double answerPresenceCount = 0;
+        double rerankHitCount = 0;
 
         for (int index = 0; index < testCases.size(); index++) {
             var testCase = testCases.get(index);
@@ -85,7 +87,9 @@ public class EvaluationApplicationService {
             hitCount += ((Number) metrics.get("hit_rate")).doubleValue();
             reciprocalRankSum += ((Number) metrics.get("mrr")).doubleValue();
             answerPresenceCount += ((Number) metrics.get("answer_presence")).doubleValue();
+            rerankHitCount += ((Number) metrics.get("rerank_hit_rate")).doubleValue();
             queryResults.add(new EvalQueryResult(
+                    testCase.caseId(),
                     testCase.query(),
                     retrievedIds,
                     generated.answer(),
@@ -100,11 +104,13 @@ public class EvaluationApplicationService {
         aggregateMetrics.put("hit_rate@" + topK, hitCount / totalCases);
         aggregateMetrics.put("mrr@" + topK, reciprocalRankSum / totalCases);
         aggregateMetrics.put("answer_presence", answerPresenceCount / totalCases);
+        aggregateMetrics.put("rerank_hit_rate@" + topK, rerankHitCount / totalCases);
 
         var report = new EvalReport(
                 UUID.randomUUID().toString(),
                 ragProperties.evaluation().evaluatorName(),
                 command.testSetPath(),
+                testSet.version(),
                 totalElapsedMs,
                 Map.copyOf(aggregateMetrics),
                 List.copyOf(queryResults)
@@ -128,6 +134,7 @@ public class EvaluationApplicationService {
         }
         metrics.put("mrr", mrr);
         metrics.put("answer_presence", generatedAnswer == null || generatedAnswer.isBlank() ? 0.0d : 1.0d);
+        metrics.put("rerank_hit_rate", hitRate);
         return Map.copyOf(metrics);
     }
 

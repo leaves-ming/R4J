@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ming.rag.bootstrap.RagApplication;
+import com.ming.rag.integration.support.IntegrationTestContainers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,9 +22,13 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "rag.storage.file.base-path=target/test-query-contract-files",
-        "rag.storage.search.initialize-index-on-startup=false"
+        "rag.storage.search.initialize-index-on-startup=true",
+        "rag.storage.search.dev-fallback-enabled=false",
+        "rag.rerank.enabled=true",
+        "rag.rerank.provider=llm",
+        "rag.ai.chat.provider=none"
 })
-class QueryApiContractTest {
+class QueryApiContractTest extends IntegrationTestContainers {
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,6 +66,45 @@ class QueryApiContractTest {
                 .andExpect(jsonPath("$.answer").isString())
                 .andExpect(jsonPath("$.citations[0].chunkId").isString())
                 .andExpect(jsonPath("$.citations[0].documentId").isString())
+                .andExpect(jsonPath("$.traceId").isString());
+    }
+
+    @Test
+    void shouldExposePartialFallbackWhenSinglePathFails() throws Exception {
+        mockMvc.perform(post("/api/v1/queries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "faildense hybrid retrieval",
+                                  "collectionId": "default",
+                                  "denseTopK": 10,
+                                  "sparseTopK": 10,
+                                  "fusionTopK": 10,
+                                  "rerankTopK": 5,
+                                  "debug": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.empty").value(false))
+                .andExpect(jsonPath("$.debug.partialFallback").value(true))
+                .andExpect(jsonPath("$.debug.denseFailure").isString())
+                .andExpect(jsonPath("$.debug.rerankApplied").value(true));
+    }
+
+    @Test
+    void shouldReturnRetrievalFailedWhenBothPathsFail() throws Exception {
+        mockMvc.perform(post("/api/v1/queries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "faildense failsparse hybrid retrieval",
+                                  "collectionId": "default",
+                                  "debug": true
+                                }
+                                """))
+                .andExpect(status().is5xxServerError())
+                .andExpect(header().exists("X-Trace-Id"))
+                .andExpect(jsonPath("$.errorCode").value("RETRIEVAL_FAILED"))
                 .andExpect(jsonPath("$.traceId").isString());
     }
 }

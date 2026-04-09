@@ -27,8 +27,8 @@ public class DenseSearchAdapter implements DenseSearchPort {
         }
         var queryVector = embeddingPort.embed(List.of(query.normalizedQuery())).getFirst();
         return searchChunkStore.findRecordsByCollection(collectionId).stream()
-                .filter(record -> matchesFilters(record.chunk(), query.filters()))
-                .map(record -> toCandidate(record.chunk(), score(record.chunk().content(), record.denseVector(), queryVector, query.keywords()), "dense"))
+                .filter(record -> matchesFilters(record, query.filters()))
+                .map(record -> toCandidate(record, score(record.content(), searchChunkStore.denseVectorOf(record), queryVector, query.keywords()), "dense"))
                 .filter(candidate -> candidate.score() > 0)
                 .sorted(Comparator.comparingDouble(RetrievalCandidate::score).reversed().thenComparing(RetrievalCandidate::chunkId))
                 .limit(topK)
@@ -59,7 +59,7 @@ public class DenseSearchAdapter implements DenseSearchPort {
         return (dot / (Math.sqrt(left) * Math.sqrt(right))) + overlap;
     }
 
-    private boolean matchesFilters(com.ming.rag.domain.ingestion.Chunk chunk, Map<String, Object> filters) {
+    private boolean matchesFilters(com.ming.rag.domain.ingestion.ChunkRecord chunk, Map<String, Object> filters) {
         for (var entry : filters.entrySet()) {
             if ("collection".equals(entry.getKey())) {
                 continue;
@@ -78,7 +78,7 @@ public class DenseSearchAdapter implements DenseSearchPort {
         return true;
     }
 
-    private RetrievalCandidate toCandidate(com.ming.rag.domain.ingestion.Chunk chunk, double score, String matchedBy) {
+    private RetrievalCandidate toCandidate(com.ming.rag.domain.ingestion.ChunkRecord chunk, double score, String matchedBy) {
         var metadata = new java.util.LinkedHashMap<String, Object>(chunk.metadata());
         metadata.put("document_id", chunk.documentId());
         metadata.putIfAbsent("source_path", chunk.metadata().get("source_path"));

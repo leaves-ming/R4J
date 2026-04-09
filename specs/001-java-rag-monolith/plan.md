@@ -13,6 +13,10 @@
 可见性、配置驱动扩展，以及从第一版开始具备可观测性与可评估性。本轮计划额外明确将真实
 PostgreSQL 持久化、真实 Elasticsearch/OpenSearch Dense/Sparse 检索、`ChunkRecord`
 检索契约、LangChain4j provider 装配边界，以及查询双路并行与单路降级语义作为必须落地的设计基线。
+基于当前实现现状，本轮继续规划的重点不是“补新功能”，而是把以下仍未真正达标的能力闭环补齐：
+真正启用 PostgreSQL / Flyway、真正把 Elasticsearch/OpenSearch 作为运行依赖、让 `ChunkRecord`
+成为正式一等公民、将评估文件格式与规格对齐、完成真实 rerank、以及把 trace / 日志 / 指标从部分覆盖补齐到可运营级别。
+当前实现阶段将按两个执行里程碑推进：首先完成 Phase 1-2 的默认真实依赖、配置校验、迁移约束与观测命名收敛；随后进入 US1-US3 的垂直切片实现，依次完成导入、查询、评估闭环。
 
 ## Technical Context / 技术上下文
 
@@ -43,6 +47,15 @@ PostgreSQL 持久化、真实 Elasticsearch/OpenSearch Dense/Sparse 检索、`Ch
 | Phase 0 | 技术栈、真实持久化、真实检索、provider 接线、并行检索与观测方案已形成可执行研究结论，且不存在未解决澄清项 |
 | Phase 1 | 数据模型、HTTP 契约、快速启动路径和 agent context 已生成完成，并将 `ChunkRecord`、双路检索、补偿删除与评估落库的实现边界写清楚 |
 
+## Current Implementation Gaps / 当前实现缺口
+
+1. **PostgreSQL / Flyway 仍未真正启用**：当前代码虽然已有迁移脚本和 JDBC/Flyway 依赖，但默认应用启动路径仍带兼容性回退，尚未把数据库设为强依赖并完成真实运行校验。
+2. **Elasticsearch/OpenSearch 仍非真正运行依赖**：搜索后端不可用时会回退到内存存储，这有利于当前测试，但不满足最终运行基线。
+3. **`ChunkRecord` 仍未成为正式一等公民**：虽然已有索引映射与中间视图，但领域、持久化、检索和评估之间仍存在 `Chunk` / `ChunkRecord` 双轨语义。
+4. **评估文件格式未完全对齐规格**：当前评估输入仍偏向最小 JSON 数组格式，尚未定义稳定版本、字段约束和校验门禁。
+5. **真实 rerank 仍未完成**：当前 rerank provider 装配已存在，但默认实现仍主要是 no-op / 限流式占位。
+6. **Trace / 日志 / 指标仍是部分实现**：链路级观测已覆盖主要路径，但字段稳定性、阶段化 span、失败分类指标、provider 级指标和运维文档仍不足。
+
 ## Acceptance Mapping / 验收映射
 
 | Acceptance Target | Source of Truth | Validation Artifact |
@@ -62,6 +75,8 @@ PostgreSQL 持久化、真实 Elasticsearch/OpenSearch Dense/Sparse 检索、`Ch
 5. `ChunkRecord` 必须先作为统一检索契约固定下来，再分别实现 Dense/Sparse 查询 DSL；禁止两路检索各自定义不同索引文档结构。
 6. LangChain4j 相关 bean 只能在 `infrastructure.ai` 装配，并通过 provider/port 适配暴露给应用层；禁止应用服务直接持有具体模型对象。
 7. Query 用例必须先完成双路并行编排与单路降级策略，再补充 rerank；禁止先接一个临时串行检索路径替代正式 pipeline。
+8. 在 Phase 2 修复中，数据库与搜索后端必须逐步提升为真实运行依赖；保留回退逻辑只允许用于测试 profile 或显式 dev fallback 配置，不得继续作为默认运行模式。
+9. 评估输入格式、快速启动文档和 CI 门禁必须使用同一份稳定 schema；禁止“测试样例格式”和“规格格式”长期分叉。
 
 ## Delivery Slices / 交付切片
 
@@ -94,6 +109,44 @@ PostgreSQL 持久化、真实 Elasticsearch/OpenSearch Dense/Sparse 检索、`Ch
 - 评估接口复用在线检索 pipeline，落库 `evaluation_run` 与 `evaluation_case_result`。
 - 增补 golden set、契约、集成和架构边界测试，覆盖上述真实实现。
 - 通过 Actuator、Micrometer 和 OpenTelemetry 暴露导入、检索、重排、评估与补偿指标。
+
+## Phase 2 Remediation Slices / 第二阶段补齐切片
+
+### Slice F - 启用真实 PostgreSQL / Flyway
+
+- 去除主应用对 `DataSourceAutoConfiguration` / `FlywayAutoConfiguration` 的排除，默认 profile 启动即要求 PostgreSQL 可用。
+- 修正迁移脚本版本、索引、约束和测试 profile，使 `document_registry`、`ingestion_job`、`evaluation_*` 都通过 Flyway 管理。
+- 将 Repository 适配器从“JDBC 优先 + 内存回退”提升为“生产默认 JDBC，测试显式桩实现”。
+
+### Slice G - 启用真实 Elasticsearch/OpenSearch 运行依赖
+
+- 将搜索后端客户端、索引初始化和 `ChunkRecord` 写入从“可回退”改为“默认真实依赖”。
+- 只在 `test` 或显式 `dev-fallback` 配置下允许回退到内存搜索存储。
+- 为索引初始化失败、写入失败、删除补偿失败提供明确启动失败或运行失败策略。
+
+### Slice H - 让 `ChunkRecord` 成为正式一等公民
+
+- 明确领域到基础设施的映射边界：`Chunk` 负责切块，`ChunkRecord` 负责检索载体，不再使用临时中间结构。
+- 为 `ChunkRecord` 增加专用 mapper / record / repository 边界，并在 Dense、Sparse、引用映射、评估输入中统一使用。
+- 补齐 `ChunkRecord` 的 createdAt / updatedAt / ready / vector / sparseTerms 规则和测试。
+
+### Slice I - 统一评估文件格式与规格
+
+- 将评估输入从“最小 JSON 数组”提升为版本化 schema，例如 `version` + `cases` 的稳定结构，或在 contract 中明确兼容策略。
+- 在 quickstart、契约、测试资源和应用加载器中统一使用同一份格式。
+- 为缺失字段、未知字段、空 case、非法 chunkId 等情况提供 fail-fast 校验。
+
+### Slice J - 完成真实 rerank
+
+- 支持至少一种真实 rerank provider 路径：`llm` 或 `cross-encoder`，并明确默认关闭、启用条件、超时与失败回退。
+- 将 rerank 指标、日志和 debug 字段从布尔标记提升为阶段化输出，如耗时、provider、回退原因。
+- 在 golden set 评估中增加“启用 rerank”和“关闭 rerank”两组对照结果。
+
+### Slice K - 完成可运营级观测
+
+- 对 ingestion / query / evaluation / rerank / search / persistence 各阶段补全统一 trace span 命名和稳定日志字段。
+- 为失败类型、fallback 类型、provider 类型、后端类型提供维度化指标。
+- 在 README、quickstart 和 CI 中加入观测验证步骤，而不是只记录端点存在。
 
 ## Project Structure / 项目结构
 

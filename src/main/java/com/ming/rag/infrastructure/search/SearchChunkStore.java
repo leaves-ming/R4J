@@ -1,9 +1,12 @@
 package com.ming.rag.infrastructure.search;
 
+import com.ming.rag.bootstrap.config.RagProperties;
 import com.ming.rag.domain.ingestion.Chunk;
+import com.ming.rag.domain.ingestion.ChunkRecord;
 import com.ming.rag.domain.ingestion.port.ChunkStorePort;
 import com.ming.rag.domain.ingestion.port.EmbeddingPort;
 import com.ming.rag.domain.ingestion.port.LexicalEncodingPort;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,24 +22,34 @@ public class SearchChunkStore implements ChunkStorePort {
     private static final Logger log = LoggerFactory.getLogger(SearchChunkStore.class);
 
     private final SearchBackendClient searchBackendClient;
+    private final RagProperties ragProperties;
     private final EmbeddingPort embeddingPort;
     private final LexicalEncodingPort lexicalEncodingPort;
-    private final Map<String, List<Chunk>> chunksByDocument = new ConcurrentHashMap<>();
+    private final Map<String, List<ChunkRecord>> chunkRecordsByDocument = new ConcurrentHashMap<>();
 
     public SearchChunkStore(
             SearchBackendClient searchBackendClient,
+            RagProperties ragProperties,
             EmbeddingPort embeddingPort,
             LexicalEncodingPort lexicalEncodingPort
     ) {
         this.searchBackendClient = searchBackendClient;
+        this.ragProperties = ragProperties;
         this.embeddingPort = embeddingPort;
         this.lexicalEncodingPort = lexicalEncodingPort;
     }
 
     @Override
     public void deleteByDocumentId(String collectionId, String documentId) {
-        searchBackendClient.deleteByDocumentId(collectionId, documentId);
-        chunksByDocument.remove(key(collectionId, documentId));
+        try {
+            searchBackendClient.deleteByDocumentId(collectionId, documentId);
+        } catch (RuntimeException exception) {
+            if (!ragProperties.storage().search().devFallbackEnabled()) {
+                throw exception;
+            }
+            log.info("search delete falling back to in-memory store collectionId={} documentId={}", collectionId, documentId);
+        }
+        chunkRecordsByDocument.remove(key(collectionId, documentId));
     }
 
     @Override
@@ -47,64 +60,75 @@ public class SearchChunkStore implements ChunkStorePort {
         var texts = chunks.stream().map(Chunk::content).toList();
         var denseVectors = embeddingPort.embed(texts);
         var sparseTerms = lexicalEncodingPort.encode(texts);
-        var records = new ArrayList<Map<String, Object>>();
+        var now = Instant.now();
+        var records = new ArrayList<ChunkRecord>();
         for (int i = 0; i < chunks.size(); i++) {
-            records.add(toSearchRecord(chunks.get(i), denseVectors.get(i), sparseTerms.get(i)));
+            records.add(toChunkRecord(chunks.get(i), denseVectors.get(i), sparseTerms.get(i), now));
         }
-        var persisted = searchBackendClient.upsertRecords(records);
-        if (!persisted) {
+        try {
+            searchBackendClient.upsertRecords(records);
+        } catch (RuntimeException exception) {
+            if (!ragProperties.storage().search().devFallbackEnabled()) {
+                throw exception;
+            }
             log.info("Search backend unavailable, falling back to in-memory chunk store for collectionId={} documentId={}", collectionId, chunks.getFirst().documentId());
         }
-        chunksByDocument.put(key(collectionId, chunks.getFirst().documentId()), List.copyOf(chunks));
+        chunkRecordsByDocument.put(key(collectionId, chunks.getFirst().documentId()), List.copyOf(records));
     }
 
     @Override
     public int countVisibleChunks(String collectionId, String documentId) {
-        var remoteCount = searchBackendClient.countVisibleChunks(collectionId, documentId);
-        if (remoteCount >= 0) {
-            return (int) remoteCount;
+        try {
+            return (int) searchBackendClient.countVisibleChunks(collectionId, documentId);
+        } catch (RuntimeException exception) {
+            if (!ragProperties.storage().search().devFallbackEnabled()) {
+                throw exception;
+            }
         }
-        return chunksByDocument.getOrDefault(key(collectionId, documentId), List.of()).size();
+        return chunkRecordsByDocument.getOrDefault(key(collectionId, documentId), List.of()).size();
     }
 
     public List<Chunk> findByDocumentId(String collectionId, String documentId) {
-        return new ArrayList<>(chunksByDocument.getOrDefault(key(collectionId, documentId), List.of()));
-    }
-
-    public List<Chunk> findByCollection(String collectionId) {
-        return findRecordsByCollection(collectionId).stream().map(SearchChunkRecord::chunk).toList();
-    }
-
-    public List<SearchChunkRecord> findRecordsByCollection(String collectionId) {
-        var remote = searchBackendClient.findByCollection(collectionId);
-        if (!remote.isEmpty()) {
-            return remote.stream().map(this::toSearchChunkRecord).toList();
-        }
-        return chunksByDocument.entrySet().stream()
-                .filter(entry -> entry.getKey().startsWith(collectionId + "::"))
-                .flatMap(entry -> entry.getValue().stream())
-                .map(this::toInMemoryRecord)
+        return chunkRecordsByDocument.getOrDefault(key(collectionId, documentId), List.of()).stream()
+                .map(this::toChunk)
                 .toList();
     }
 
-    private Map<String, Object> toSearchRecord(Chunk chunk, float[] denseVector, Map<String, Integer> sparseTerms) {
+    public List<Chunk> findByCollection(String collectionId) {
+        return findRecordsByCollection(collectionId).stream().map(this::toChunk).toList();
+    }
+
+    public List<ChunkRecord> findRecordsByCollection(String collectionId) {
+        try {
+            return searchBackendClient.findByCollection(collectionId);
+        } catch (RuntimeException exception) {
+            if (!ragProperties.storage().search().devFallbackEnabled()) {
+                throw exception;
+            }
+        }
+        return chunkRecordsByDocument.entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith(collectionId + "::"))
+                .flatMap(entry -> entry.getValue().stream())
+                .toList();
+    }
+
+    private ChunkRecord toChunkRecord(Chunk chunk, float[] denseVector, Map<String, Integer> sparseTerms, Instant now) {
         var metadata = new LinkedHashMap<>(chunk.metadata());
         metadata.put("document_id", chunk.documentId());
         metadata.put("chunk_index", chunk.chunkIndex());
-
-        var record = new LinkedHashMap<String, Object>();
-        record.put("id", chunk.collectionId() + ":" + chunk.chunkId());
-        record.put("collection_id", chunk.collectionId());
-        record.put("chunk_id", chunk.chunkId());
-        record.put("document_id", chunk.documentId());
-        record.put("chunk_index", chunk.chunkIndex());
-        record.put("content", chunk.content());
-        record.put("metadata_json", metadata);
-        record.put("dense_vector", toFloatList(denseVector));
-        record.put("sparse_terms", sparseTerms);
-        record.put("ready", true);
-        record.put("updated_at", searchBackendClient.nowIso());
-        return record;
+        return new ChunkRecord(
+                chunk.chunkId(),
+                chunk.documentId(),
+                chunk.collectionId(),
+                chunk.chunkIndex(),
+                chunk.content(),
+                Map.copyOf(metadata),
+                toFloatList(denseVector),
+                Map.copyOf(sparseTerms),
+                true,
+                now,
+                now
+        );
     }
 
     private List<Float> toFloatList(float[] denseVector) {
@@ -115,29 +139,15 @@ public class SearchChunkStore implements ChunkStorePort {
         return list;
     }
 
-    @SuppressWarnings("unchecked")
-    private SearchChunkRecord toSearchChunkRecord(Map<String, Object> record) {
-        var metadata = (Map<String, Object>) record.getOrDefault("metadata_json", Map.of());
-        var chunk = new Chunk(
-                String.valueOf(record.get("chunk_id")),
-                String.valueOf(record.get("document_id")),
-                String.valueOf(record.get("collection_id")),
-                ((Number) record.getOrDefault("chunk_index", 0)).intValue(),
-                String.valueOf(record.get("content")),
-                Map.copyOf(metadata)
+    private Chunk toChunk(ChunkRecord record) {
+        return new Chunk(
+                record.chunkId(),
+                record.documentId(),
+                record.collectionId(),
+                record.chunkIndex(),
+                record.content(),
+                record.metadata()
         );
-        var vector = ((List<?>) record.getOrDefault("dense_vector", List.of())).stream()
-                .map(value -> ((Number) value).floatValue())
-                .toList();
-        var sparseTerms = new LinkedHashMap<String, Integer>();
-        ((Map<?, ?>) record.getOrDefault("sparse_terms", Map.of())).forEach((key, value) -> sparseTerms.put(String.valueOf(key), ((Number) value).intValue()));
-        return new SearchChunkRecord(chunk, toFloatArray(vector), Map.copyOf(sparseTerms));
-    }
-
-    private SearchChunkRecord toInMemoryRecord(Chunk chunk) {
-        var vector = embeddingPort.embed(List.of(chunk.content())).getFirst();
-        var sparseTerms = lexicalEncodingPort.encode(List.of(chunk.content())).getFirst();
-        return new SearchChunkRecord(chunk, vector, sparseTerms);
     }
 
     private float[] toFloatArray(List<Float> vector) {
@@ -148,8 +158,18 @@ public class SearchChunkStore implements ChunkStorePort {
         return result;
     }
 
-    private String key(String collectionId, String documentId) {
-        return collectionId + "::" + documentId;
+    public float[] denseVectorOf(ChunkRecord record) {
+        return toFloatArray(record.denseVector());
+    }
+
+    public Map<String, Integer> sparseTermsOf(ChunkRecord record) {
+        return record.sparseTerms();
+    }
+
+    private ChunkRecord toInMemoryRecord(Chunk chunk) {
+        var vector = embeddingPort.embed(List.of(chunk.content())).getFirst();
+        var sparseTerms = lexicalEncodingPort.encode(List.of(chunk.content())).getFirst();
+        return toChunkRecord(chunk, vector, sparseTerms, Instant.now());
     }
 
     public record SearchChunkRecord(
@@ -157,5 +177,21 @@ public class SearchChunkStore implements ChunkStorePort {
             float[] denseVector,
             Map<String, Integer> sparseTerms
     ) {
+    }
+
+    public SearchChunkRecord toSearchChunkRecord(ChunkRecord record) {
+        var chunk = new Chunk(
+                record.chunkId(),
+                record.documentId(),
+                record.collectionId(),
+                record.chunkIndex(),
+                record.content(),
+                record.metadata()
+        );
+        return new SearchChunkRecord(chunk, denseVectorOf(record), sparseTermsOf(record));
+    }
+
+    private String key(String collectionId, String documentId) {
+        return collectionId + "::" + documentId;
     }
 }

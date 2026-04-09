@@ -6,6 +6,8 @@ import com.ming.rag.application.evaluation.EvaluationApplicationService;
 import com.ming.rag.application.evaluation.EvaluationCommand;
 import com.ming.rag.application.ingestion.IngestionApplicationService;
 import com.ming.rag.application.ingestion.IngestionCommand;
+import com.ming.rag.bootstrap.RagApplication;
+import com.ming.rag.integration.support.IntegrationTestContainers;
 import com.ming.rag.infrastructure.persistence.EvaluationReportRepository;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,12 +18,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-@SpringBootTest(classes = com.ming.rag.bootstrap.RagApplication.class)
+@SpringBootTest(classes = RagApplication.class)
 @TestPropertySource(properties = {
         "rag.storage.file.base-path=target/test-eval-files",
-        "rag.storage.search.initialize-index-on-startup=false"
+        "rag.storage.search.initialize-index-on-startup=true",
+        "rag.storage.search.dev-fallback-enabled=false"
 })
-class EvaluationPersistenceIntegrationTest {
+class EvaluationPersistenceIntegrationTest extends IntegrationTestContainers {
 
     @Autowired
     private IngestionApplicationService ingestionApplicationService;
@@ -57,14 +60,18 @@ class EvaluationPersistenceIntegrationTest {
         var testSetPath = Path.of("target/test-eval-files/golden-set.json");
         Files.createDirectories(testSetPath.getParent());
         Files.writeString(testSetPath, """
-                [
-                  {
-                    "query": "hybrid retrieval",
-                    "expectedChunkIds": ["%s"],
-                    "expectedSources": ["target/test-eval-files/eval-doc.md"],
-                    "referenceAnswer": "hybrid retrieval combines semantic matching and keyword matching"
-                  }
-                ]
+                {
+                  "version": "v1",
+                  "cases": [
+                    {
+                      "caseId": "eval-001",
+                      "query": "hybrid retrieval",
+                      "expectedChunkIds": ["%s"],
+                      "expectedSources": ["target/test-eval-files/eval-doc.md"],
+                      "referenceAnswer": "hybrid retrieval combines semantic matching and keyword matching"
+                    }
+                  ]
+                }
                 """.formatted(chunkId));
 
         var report = evaluationApplicationService.evaluate(new EvaluationCommand(testSetPath.toString(), "default", 10));

@@ -21,10 +21,16 @@ jobs:
         run: mvn -q -DskipTests compile
 
       - name: Unit And Architecture Tests
-        run: mvn -q -Dtest=DocumentIdPolicyTest,ChunkIdPolicyTest,IngestionStateMachineTest,QueryProcessorTest,RrfFusionPolicyTest,ProviderConfigurationTest,EvaluationUsesRetrievalTopKTest,ArchitectureBoundaryTest test
+        run: >-
+          mvn -q -Dtest=DocumentIdPolicyTest,ChunkIdPolicyTest,IngestionStateMachineTest,
+          QueryProcessorTest,RrfFusionPolicyTest,ProviderConfigurationTest,
+          EvaluationUsesRetrievalTopKTest,ArchitectureBoundaryTest test
 
-      - name: Integration And Contract Tests
-        run: mvn -q -Dtest=IngestionIntegrationTest,IngestionApiContractTest,RetrievalPipelineIntegrationTest,QueryApiContractTest,EvaluationPersistenceIntegrationTest,EvaluationApiContractTest test
+      - name: Contract And Integration Regression
+        run: >-
+          mvn -q clean -Dtest=IngestionApiContractTest,IngestionIntegrationTest,
+          QueryApiContractTest,RetrievalPipelineIntegrationTest,
+          EvaluationApiContractTest,EvaluationPersistenceIntegrationTest test
 
       - name: Full Regression Suite
         run: mvn -q test

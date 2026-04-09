@@ -6,17 +6,25 @@ import com.ming.rag.application.ingestion.IngestionApplicationService;
 import com.ming.rag.application.ingestion.IngestionCommand;
 import com.ming.rag.application.query.QueryCommand;
 import com.ming.rag.application.query.RetrievalPipelineService;
+import com.ming.rag.bootstrap.RagApplication;
+import com.ming.rag.integration.support.IntegrationTestContainers;
+import com.ming.rag.domain.common.exception.RetrievalFailedException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest(classes = com.ming.rag.bootstrap.RagApplication.class)
+@SpringBootTest(classes = RagApplication.class)
 @TestPropertySource(properties = {
         "rag.storage.file.base-path=target/test-retrieval-files",
-        "rag.storage.search.initialize-index-on-startup=false"
+        "rag.storage.search.initialize-index-on-startup=true",
+        "rag.storage.search.dev-fallback-enabled=false",
+        "rag.rerank.enabled=true",
+        "rag.rerank.provider=llm",
+        "rag.ai.chat.provider=none"
 })
-class RetrievalPipelineIntegrationTest {
+class RetrievalPipelineIntegrationTest extends IntegrationTestContainers {
 
     @Autowired
     private IngestionApplicationService ingestionApplicationService;
@@ -41,7 +49,9 @@ class RetrievalPipelineIntegrationTest {
 
         assertThat(result.partialFallback()).isTrue();
         assertThat(result.topKResults()).isNotEmpty();
-        assertThat(result.debug()).containsKey("dense_failure");
+        assertThat(result.debug()).containsKey("denseFailure");
+        assertThat(result.debug()).containsEntry("partialFallback", true);
+        assertThat(result.debug()).containsEntry("rerankApplied", true);
     }
 
     @Test
@@ -79,6 +89,22 @@ class RetrievalPipelineIntegrationTest {
         ));
 
         assertThat(result.topKResults()).allMatch(item -> item.metadata().containsKey("document_id"));
+    }
+
+    @Test
+    void shouldFailWhenDenseAndSparseBothFail() {
+        ingest("# Hybrid Search\nhybrid retrieval combines semantic and keyword matching");
+
+        assertThatThrownBy(() -> retrievalPipelineService.retrieve(new QueryCommand(
+                "faildense failsparse hybrid retrieval",
+                "default",
+                java.util.Map.of(),
+                10,
+                10,
+                10,
+                5,
+                true
+        ))).isInstanceOf(RetrievalFailedException.class);
     }
 
     private void ingest(String content) {
