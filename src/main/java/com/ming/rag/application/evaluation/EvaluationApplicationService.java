@@ -62,6 +62,7 @@ public class EvaluationApplicationService {
 
         var testSet = evalCaseLoader.load(command.testSetPath());
         var testCases = testSet.cases();
+        evaluationObservationService.onCasesLoaded(traceId, collectionId, testCases.size());
         var queryResults = new ArrayList<EvalQueryResult>();
         double hitCount = 0;
         double reciprocalRankSum = 0;
@@ -71,6 +72,7 @@ public class EvaluationApplicationService {
         for (int index = 0; index < testCases.size(); index++) {
             var testCase = testCases.get(index);
             var queryStarted = System.nanoTime();
+            evaluationObservationService.onRetrieveCase(traceId, collectionId, testCase.query());
             var retrievalResult = retrievalPipelineService.retrieve(new QueryCommand(
                     testCase.query(),
                     collectionId,
@@ -81,8 +83,10 @@ public class EvaluationApplicationService {
                     topK,
                     false
             ));
+            evaluationObservationService.onAnswerCase(traceId, collectionId, testCase.query());
             var generated = answerGeneratorPort.generate(testCase.query(), retrievalResult.topKResults(), retrievalResult.traceId(), false);
             var retrievedIds = retrievalResult.topKResults().stream().map(item -> item.chunkId()).toList();
+            evaluationObservationService.onScoreCase(traceId, collectionId, testCase.query());
             var metrics = score(testCase, retrievedIds, generated.answer());
             hitCount += ((Number) metrics.get("hit_rate")).doubleValue();
             reciprocalRankSum += ((Number) metrics.get("mrr")).doubleValue();
@@ -115,6 +119,7 @@ public class EvaluationApplicationService {
                 Map.copyOf(aggregateMetrics),
                 List.copyOf(queryResults)
         );
+        evaluationObservationService.onPersist(traceId, collectionId, report.runId());
         evaluationReportPort.save(report, collectionId, totalElapsedMs);
         evaluationObservationService.onCompleted(traceId, collectionId, queryResults.size());
         return report;

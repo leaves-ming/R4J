@@ -8,6 +8,15 @@ spring:
     enabled: false
 
 rag:
+  ai:
+    chat:
+      provider: none
+    embedding:
+      provider: none
+  rerank:
+    enabled: false
+    provider: none
+    top-k: 5
   storage:
     metadata:
       url: jdbc:h2:mem:rag
@@ -22,3 +31,6 @@ rag:
       dev-fallback-enabled: true
     file:
       base-path: target/test-files
+  evaluation:
+    default-top-k: 10
+    evaluator-name: default-evaluator

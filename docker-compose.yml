@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: rag
       POSTGRES_USER: rag
@@ -15,6 +16,7 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    restart: unless-stopped
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"

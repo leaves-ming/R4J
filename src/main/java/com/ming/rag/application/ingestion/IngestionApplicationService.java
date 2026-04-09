@@ -5,6 +5,7 @@ import com.ming.rag.domain.common.DocumentIdPolicy;
 import com.ming.rag.domain.common.JobId;
 import com.ming.rag.domain.common.exception.IngestionFailedException;
 import com.ming.rag.domain.ingestion.Chunk;
+import com.ming.rag.domain.ingestion.ChunkRecord;
 import com.ming.rag.domain.ingestion.SourceDocument;
 import com.ming.rag.domain.ingestion.port.ChunkStorePort;
 import com.ming.rag.domain.ingestion.port.DocumentLoaderPort;
@@ -15,7 +16,10 @@ import com.ming.rag.infrastructure.persistence.IngestionJobRepository;
 import com.ming.rag.observability.TraceContextAccessor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -127,8 +131,8 @@ public class IngestionApplicationService {
             var chunks = documentSplitterService.split(parsedDocument, command.chunkSizeOverride(), command.chunkOverlapOverride());
             var canonicalChunks = chunkRefinerService.refine(chunks);
             var enrichedChunks = metadataEnricherService.enrich(canonicalChunks);
-            embeddingPort.embed(enrichedChunks.stream().map(Chunk::content).toList());
-            lexicalEncodingPort.encode(enrichedChunks.stream().map(Chunk::content).toList());
+            var denseVectors = embeddingPort.embed(enrichedChunks.stream().map(Chunk::content).toList());
+            var sparseTerms = lexicalEncodingPort.encode(enrichedChunks.stream().map(Chunk::content).toList());
 
             var finalChunks = enrichedChunks.stream()
                     .map(chunk -> new Chunk(
@@ -140,10 +144,34 @@ public class IngestionApplicationService {
                             canonicalMetadata(chunk)
                     ))
                     .toList();
+            var now = Instant.now();
+            var records = new ArrayList<ChunkRecord>(finalChunks.size());
+            for (int index = 0; index < finalChunks.size(); index++) {
+                var chunk = finalChunks.get(index);
+                records.add(new ChunkRecord(
+                        chunk.chunkId(),
+                        chunk.documentId(),
+                        chunk.collectionId(),
+                        chunk.chunkIndex(),
+                        chunk.content(),
+                        canonicalMetadata(chunk),
+                        toFloatList(denseVectors.get(index)),
+                        sparseTerms.get(index),
+                        true,
+                        now,
+                        now
+                ));
+            }
 
             chunkStorePort.deleteByDocumentId(collectionId, documentId);
-            chunkStorePort.upsert(collectionId, finalChunks);
-            documentRegistryPort.markReady(collectionId, documentId, finalChunks.size());
+            chunkStorePort.upsert(collectionId, records);
+            try {
+                documentRegistryPort.markReady(collectionId, documentId, finalChunks.size());
+            } catch (RuntimeException readyException) {
+                chunkStorePort.deleteByDocumentId(collectionId, documentId);
+                ingestionObservationService.onCompensation(traceId, collectionId, documentId, readyException.getMessage());
+                throw readyException;
+            }
             ingestionJobRepository.markReady(
                     jobId,
                     collectionId,
@@ -182,6 +210,15 @@ public class IngestionApplicationService {
         metadata.put("chunk_index", chunk.chunkIndex());
         metadata.putIfAbsent("source_path", metadata.getOrDefault("source_path", ""));
         metadata.putIfAbsent("doc_type", metadata.getOrDefault("doc_type", "text"));
+        metadata.putIfAbsent("source_ref", chunk.documentId());
         return metadata;
+    }
+
+    private List<Float> toFloatList(float[] vector) {
+        var result = new ArrayList<Float>(vector.length);
+        for (float value : vector) {
+            result.add(value);
+        }
+        return List.copyOf(result);
     }
 }

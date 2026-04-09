@@ -18,9 +18,33 @@ public class EvaluationObservationService {
     }
 
     public void onStarted(String traceId, String collectionId) {
-        meterRegistry.counter(MetricNames.EVALUATION_REQUESTS, "collectionId", collectionId).increment();
         meterRegistry.counter(MetricNames.EVALUATION_RUN_TOTAL, "collectionId", collectionId).increment();
         log.info("evaluation started traceId={} collectionId={} stage=evaluation_load_test_set", traceId, collectionId);
+    }
+
+    public void onCasesLoaded(String traceId, String collectionId, int totalCases) {
+        log.info(
+                "evaluation stage traceId={} collectionId={} stage=evaluation_load_cases totalCases={}",
+                traceId,
+                collectionId,
+                totalCases
+        );
+    }
+
+    public void onRetrieveCase(String traceId, String collectionId, String query) {
+        log.info("evaluation stage traceId={} collectionId={} stage=evaluation_retrieve query={}", traceId, collectionId, query);
+    }
+
+    public void onAnswerCase(String traceId, String collectionId, String query) {
+        log.info("evaluation stage traceId={} collectionId={} stage=evaluation_answer query={}", traceId, collectionId, query);
+    }
+
+    public void onScoreCase(String traceId, String collectionId, String query) {
+        log.info("evaluation stage traceId={} collectionId={} stage=evaluation_score query={}", traceId, collectionId, query);
+    }
+
+    public void onPersist(String traceId, String collectionId, String runId) {
+        log.info("evaluation stage traceId={} collectionId={} stage=evaluation_persist runId={}", traceId, collectionId, runId);
     }
 
     public void onCompleted(String traceId, String collectionId, int totalCases) {

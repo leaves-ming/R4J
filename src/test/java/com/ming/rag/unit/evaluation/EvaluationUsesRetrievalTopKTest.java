@@ -62,14 +62,15 @@ class EvaluationUsesRetrievalTopKTest {
         try {
             java.nio.file.Files.writeString(testSet, """
                     {
-                      "version": "v1",
-                      "cases": [
+                      "description": "unit regression",
+                      "version": "1.0",
+                      "test_cases": [
                         {
                           "caseId": "case-1",
                           "query": "q",
-                          "expectedChunkIds": ["chunk-topk"],
-                          "expectedSources": ["source.md"],
-                          "referenceAnswer": "answer"
+                          "expected_chunk_ids": ["chunk-topk"],
+                          "expected_sources": ["source.md"],
+                          "reference_answer": "answer"
                         }
                       ]
                     }
@@ -81,7 +82,7 @@ class EvaluationUsesRetrievalTopKTest {
         EvalReport report = service.evaluate(new EvaluationCommand(testSet.toString(), "default", 10));
 
         assertThat(report.queryResults().getFirst().retrievedTopKChunkIds()).containsExactly("chunk-topk");
-        assertThat(report.schemaVersion()).isEqualTo("v1");
+        assertThat(report.schemaVersion()).isEqualTo("1.0");
         assertThat(report.queryResults().getFirst().caseId()).isEqualTo("case-1");
     }
 
@@ -92,8 +93,9 @@ class EvaluationUsesRetrievalTopKTest {
         try {
             java.nio.file.Files.writeString(testSet, """
                     {
-                      "version": "v1",
-                      "cases": []
+                      "description": "invalid",
+                      "version": "1.0",
+                      "test_cases": []
                     }
                     """);
         } catch (java.io.IOException exception) {
@@ -102,7 +104,7 @@ class EvaluationUsesRetrievalTopKTest {
 
         assertThatThrownBy(() -> loader.load(testSet.toString()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("cases");
+                .hasMessageContaining("test_cases");
     }
 
     private RagProperties properties() {

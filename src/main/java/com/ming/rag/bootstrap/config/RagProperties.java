@@ -95,6 +95,11 @@ public record RagProperties(
         public boolean hasRequiredConnectionProperties() {
             return !required || (hasText(url) && hasText(chunkIndex));
         }
+
+        @AssertTrue(message = "dev fallback may only be enabled when search is not required")
+        public boolean hasConsistentFallbackContract() {
+            return !devFallbackEnabled || !required;
+        }
     }
 
     public record File(

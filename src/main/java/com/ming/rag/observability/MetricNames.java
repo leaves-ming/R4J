@@ -2,26 +2,28 @@ package com.ming.rag.observability;
 
 public final class MetricNames {
 
-    public static final String INGESTION_REQUESTS = "rag.ingestion.requests";
-    public static final String INGESTION_DURATION = "rag.ingestion.duration";
-    public static final String INGESTION_READY = "rag.ingestion.ready";
-    public static final String INGESTION_FAILED = "rag.ingestion.failed";
-    public static final String INGESTION_SKIPPED = "rag.ingestion.skipped";
-    public static final String INGESTION_COMPENSATION = "rag.ingestion.compensation";
+    public static final String INGESTION_TOTAL = "rag.ingestion.total";
+    public static final String INGESTION_LATENCY_MS = "rag.ingestion_latency_ms";
+    public static final String INGESTION_READY_TOTAL = "rag.ingestion.ready_total";
+    public static final String INGESTION_FAILURE_TOTAL = "rag.ingestion_failure_total";
+    public static final String INGESTION_SKIPPED_TOTAL = "rag.ingestion.skipped_total";
+    public static final String INGESTION_COMPENSATION_TOTAL = "rag.ingestion_compensation_total";
+    public static final String INGESTION_CHUNK_COUNT = "rag.ingestion_chunk_count";
 
-    public static final String QUERY_REQUESTS = "rag.query.requests";
-    public static final String QUERY_DURATION = "rag.query.duration";
-    public static final String QUERY_FAILED = "rag.query.failed";
-    public static final String QUERY_FALLBACK = "rag.query.fallback";
-    public static final String QUERY_DENSE = "rag.query.dense";
-    public static final String QUERY_SPARSE = "rag.query.sparse";
-    public static final String QUERY_RERANK = "rag.query.rerank";
-    public static final String QUERY_RESPONSE = "rag.query.response";
+    public static final String QUERY_TOTAL = "rag.query_total";
+    public static final String QUERY_FAILURE_TOTAL = "rag.query_failure_total";
+    public static final String QUERY_LATENCY_MS = "rag.query_latency_ms";
+    public static final String DENSE_LATENCY_MS = "rag.dense_latency_ms";
+    public static final String SPARSE_LATENCY_MS = "rag.sparse_latency_ms";
+    public static final String RERANK_LATENCY_MS = "rag.rerank_latency_ms";
+    public static final String LLM_LATENCY_MS = "rag.llm_latency_ms";
+    public static final String RETRIEVAL_FALLBACK_TOTAL = "rag.retrieval_fallback_total";
+    public static final String QUERY_RESPONSE_TOTAL = "rag.query_response_total";
 
-    public static final String EVALUATION_REQUESTS = "rag.evaluation.requests";
-    public static final String EVALUATION_DURATION = "rag.evaluation.duration";
-    public static final String EVALUATION_RUN_TOTAL = "rag.evaluation.run.total";
-    public static final String EVALUATION_CASE_TOTAL = "rag.evaluation.case.total";
+    public static final String EVALUATION_RUN_TOTAL = "rag.evaluation_run_total";
+    public static final String EVALUATION_CASE_TOTAL = "rag.evaluation_case_total";
+    public static final String EVALUATION_LATENCY_MS = "rag.evaluation_latency_ms";
+    public static final String EVALUATION_METRIC_VALUE = "rag.evaluation_metric_value";
 
     private MetricNames() {
     }

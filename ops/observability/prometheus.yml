@@ -1,6 +1,15 @@
 global:
   scrape_interval: 15s
 
+# Primary validated metrics:
+# - rag_ingestion_total
+# - rag_ingestion_compensation_total
+# - rag_ingestion_failure_total
+# - rag_query_total
+# - rag_retrieval_fallback_total
+# - rag_rerank_latency_ms
+# - rag_evaluation_run_total
+
 scrape_configs:
   - job_name: "rag-app"
     metrics_path: "/actuator/prometheus"
@@ -9,3 +18,7 @@ scrape_configs:
     relabel_configs:
       - target_label: service
         replacement: rag-monolith
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "rag_(ingestion_total|ingestion_compensation_total|ingestion_failure_total|query_total|query_failure_total|retrieval_fallback_total|query_response_total|dense_latency_ms|sparse_latency_ms|rerank_latency_ms|evaluation_run_total|evaluation_case_total)"
+        action: keep

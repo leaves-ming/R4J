@@ -48,14 +48,15 @@ class EvaluationApiContractTest extends IntegrationTestContainers {
         Files.createDirectories(path.getParent());
         Files.writeString(path, """
                 {
-                  "version": "v1",
-                  "cases": [
+                  "description": "contract regression",
+                  "version": "1.0",
+                  "test_cases": [
                     {
                       "caseId": "eval-contract-1",
                       "query": "hybrid retrieval",
-                      "expectedChunkIds": ["%s"],
-                      "expectedSources": ["target/test-eval-contract-files/eval-contract.md"],
-                      "referenceAnswer": "hybrid retrieval combines semantic and keyword matching"
+                      "expected_chunk_ids": ["%s"],
+                      "expected_sources": ["target/test-eval-contract-files/eval-contract.md"],
+                      "reference_answer": "hybrid retrieval combines semantic and keyword matching"
                     }
                   ]
                 }
@@ -79,7 +80,7 @@ class EvaluationApiContractTest extends IntegrationTestContainers {
                 .andExpect(jsonPath("$.runId").isString())
                 .andExpect(jsonPath("$.evaluatorName").value("default-evaluator"))
                 .andExpect(jsonPath("$.testSetPath").value(testSetPath))
-                .andExpect(jsonPath("$.schemaVersion").value("v1"))
+                .andExpect(jsonPath("$.schemaVersion").value("1.0"))
                 .andExpect(jsonPath("$.totalElapsedMs").isNumber())
                 .andExpect(jsonPath("$.aggregateMetrics").exists())
                 .andExpect(jsonPath("$.queryResults[0].caseId").value("eval-contract-1"))
@@ -92,8 +93,9 @@ class EvaluationApiContractTest extends IntegrationTestContainers {
         Files.createDirectories(path.getParent());
         Files.writeString(path, """
                 {
-                  "version": "v1",
-                  "cases": []
+                  "description": "invalid",
+                  "version": "1.0",
+                  "test_cases": []
                 }
                 """);
 

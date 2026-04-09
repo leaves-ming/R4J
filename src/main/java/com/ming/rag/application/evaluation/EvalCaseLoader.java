@@ -1,5 +1,6 @@
 package com.ming.rag.application.evaluation;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -29,19 +30,21 @@ public class EvalCaseLoader {
         if (testSet == null || testSet.version() == null || testSet.version().isBlank()) {
             throw new IllegalStateException("Evaluation test set must declare version");
         }
-        if (!"v1".equalsIgnoreCase(testSet.version())) {
+        if (!"1.0".equalsIgnoreCase(testSet.version())) {
             throw new IllegalStateException("Unsupported evaluation schema version: " + testSet.version());
         }
-        if (testSet.cases() == null || testSet.cases().isEmpty()) {
-            throw new IllegalStateException("Evaluation test set cases must not be empty");
+        if (testSet.description() == null || testSet.description().isBlank()) {
+            throw new IllegalStateException("Evaluation test set must declare description");
+        }
+        if (testSet.testCases() == null || testSet.testCases().isEmpty()) {
+            throw new IllegalStateException("Evaluation test set test_cases must not be empty");
         }
         var seenCaseIds = new java.util.HashSet<String>();
-        for (var testCase : testSet.cases()) {
-            if (testCase.caseId() == null || testCase.caseId().isBlank()) {
-                throw new IllegalStateException("Evaluation caseId must not be blank");
-            }
-            if (!seenCaseIds.add(testCase.caseId())) {
-                throw new IllegalStateException("Duplicate evaluation caseId: " + testCase.caseId());
+        for (int index = 0; index < testSet.testCases().size(); index++) {
+            var testCase = testSet.testCases().get(index);
+            var caseId = testCase.caseId() == null || testCase.caseId().isBlank() ? "case-" + index : testCase.caseId();
+            if (!seenCaseIds.add(caseId)) {
+                throw new IllegalStateException("Duplicate evaluation caseId: " + caseId);
             }
             if (testCase.query() == null || testCase.query().isBlank()) {
                 throw new IllegalStateException("Evaluation query must not be blank");
@@ -56,16 +59,24 @@ public class EvalCaseLoader {
     }
 
     public record EvalTestSet(
+            String description,
             String version,
-            List<EvalCase> cases
+            @JsonProperty("test_cases")
+            List<EvalCase> testCases
     ) {
+        public List<EvalCase> cases() {
+            return testCases;
+        }
     }
 
     public record EvalCase(
             String caseId,
             String query,
+            @JsonProperty("expected_chunk_ids")
             List<String> expectedChunkIds,
+            @JsonProperty("expected_sources")
             List<String> expectedSources,
+            @JsonProperty("reference_answer")
             String referenceAnswer
     ) {
     }

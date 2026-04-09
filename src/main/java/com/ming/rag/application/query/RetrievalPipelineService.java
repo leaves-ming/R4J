@@ -59,10 +59,17 @@ public class RetrievalPipelineService {
     public RetrievalResult retrieve(QueryCommand command) {
         var collectionId = command.collectionId() == null || command.collectionId().isBlank() ? "default" : command.collectionId();
         var filters = extractStructuredFilters(command.options());
+        var queryProcessingStart = System.nanoTime();
         ProcessedQuery processedQuery = queryProcessorService.process(command.query(), collectionId, filters);
         var debug = new LinkedHashMap<String, Object>();
         var traceId = traceContextAccessor.currentTraceId();
         queryObservationService.onRetrievalStarted(traceId, collectionId);
+        queryObservationService.onQueryProcessed(
+                traceId,
+                collectionId,
+                elapsedMs(queryProcessingStart),
+                processedQuery.keywords().size()
+        );
 
         var denseStart = System.nanoTime();
         var sparseStart = System.nanoTime();
@@ -84,6 +91,7 @@ public class RetrievalPipelineService {
             debug.put("denseFailure", rootCauseMessage(exception));
             debug.put("denseLatencyMs", elapsedMs(denseStart));
         }
+        queryObservationService.onDenseCompleted(traceId, collectionId, (Long) debug.get("denseLatencyMs"), denseFailed);
 
         try {
             sparseCandidates = sparseFuture.join();
@@ -93,6 +101,7 @@ public class RetrievalPipelineService {
             debug.put("sparseFailure", rootCauseMessage(exception));
             debug.put("sparseLatencyMs", elapsedMs(sparseStart));
         }
+        queryObservationService.onSparseCompleted(traceId, collectionId, (Long) debug.get("sparseLatencyMs"), sparseFailed);
 
         if (denseFailed && sparseFailed) {
             queryObservationService.onFailure(collectionId);
@@ -114,6 +123,13 @@ public class RetrievalPipelineService {
             debug.put("partialFallback", false);
         }
         debug.put("fusionElapsedMs", elapsedMs(fusionStart));
+        queryObservationService.onFusionCompleted(
+                traceId,
+                collectionId,
+                (Long) debug.get("fusionElapsedMs"),
+                Boolean.TRUE.equals(debug.get("partialFallback")),
+                candidates.size()
+        );
 
         var rerankStart = System.nanoTime();
         var reranked = rerankPort.rerank(processedQuery, candidates, topK(command.rerankTopK(), ragProperties.rerank().topK()));
@@ -121,6 +137,13 @@ public class RetrievalPipelineService {
         debug.put("rerankApplied", rerankEnabled);
         debug.put("rerankProvider", ragProperties.rerank().provider());
         debug.put("rerankLatencyMs", elapsedMs(rerankStart));
+        queryObservationService.onRerankCompleted(
+                traceId,
+                collectionId,
+                (Long) debug.get("rerankLatencyMs"),
+                ragProperties.rerank().provider(),
+                rerankEnabled
+        );
         if (rerankEnabled && reranked.equals(candidates.stream().limit(reranked.size()).toList())) {
             debug.put("rerankFallbackReason", "provider_unavailable_or_no_change");
         }

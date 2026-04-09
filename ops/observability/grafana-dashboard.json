@@ -2,14 +2,14 @@
   "title": "RAG Overview",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "panels": [
     {
-      "title": "Ingestion Requests",
+      "title": "Ingestion Total",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(rag_ingestion_requests_total[5m]))"
+          "expr": "sum(rate(rag_ingestion_total[5m]))"
         }
       ]
     },
@@ -18,16 +18,25 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(rag_ingestion_failed_total[5m]))"
+          "expr": "sum(rate(rag_ingestion_failure_total[5m]))"
         }
       ]
     },
     {
-      "title": "Query Requests",
+      "title": "Ingestion Compensation",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(rag_query_requests_total[5m]))"
+          "expr": "sum(rate(rag_ingestion_compensation_total[5m]))"
+        }
+      ]
+    },
+    {
+      "title": "Query Total",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rag_query_total[5m]))"
         }
       ]
     },
@@ -36,7 +45,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(rag_query_fallback_total[5m])) by (failedPath)"
+          "expr": "sum(rate(rag_retrieval_fallback_total[5m])) by (failedPath)"
         }
       ]
     },
@@ -50,11 +59,38 @@
       ]
     },
     {
+      "title": "Dense Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rag_dense_latency_ms_seconds_bucket[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "title": "Sparse Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rag_sparse_latency_ms_seconds_bucket[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "title": "Rerank Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rag_rerank_latency_ms_seconds_bucket[5m])) by (le, provider))"
+        }
+      ]
+    },
+    {
       "title": "Evaluation Runs",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(rag_evaluation_run_total_total[5m]))"
+          "expr": "sum(rate(rag_evaluation_run_total[5m]))"
         }
       ]
     },
@@ -63,7 +99,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(rag_evaluation_case_total_total[5m]))"
+          "expr": "sum(rate(rag_evaluation_case_total[5m]))"
         }
       ]
     }

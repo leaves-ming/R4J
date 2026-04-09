@@ -32,6 +32,18 @@ class ArchitectureBoundaryTest {
                     .that().resideInAPackage("com.ming.rag.interfaces..")
                     .should().dependOnClassesThat().resideInAPackage("com.ming.rag.infrastructure..");
 
+    @ArchTest
+    static final ArchRule chunk_record_should_stay_inside_ingestion_domain =
+            noClasses()
+                    .that().resideInAnyPackage("com.ming.rag.domain.query..", "com.ming.rag.domain.response..", "com.ming.rag.interfaces..")
+                    .should().dependOnClassesThat().haveSimpleName("ChunkRecord");
+
+    @ArchTest
+    static final ArchRule chunk_store_port_should_only_use_chunk_record_not_chunk =
+            noClasses()
+                    .that().haveFullyQualifiedName("com.ming.rag.domain.ingestion.port.ChunkStorePort")
+                    .should().dependOnClassesThat().haveFullyQualifiedName("com.ming.rag.domain.ingestion.Chunk");
+
     @Test
     void ragApplicationShouldNotExcludeDatasourceOrFlywayAutoConfiguration() {
         var annotation = RagApplication.class.getAnnotation(SpringBootApplication.class);

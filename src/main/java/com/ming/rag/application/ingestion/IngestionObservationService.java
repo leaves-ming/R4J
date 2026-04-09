@@ -19,12 +19,12 @@ public class IngestionObservationService {
     }
 
     public void onStarted(String traceId, String collectionId, String documentId) {
-        meterRegistry.counter(MetricNames.INGESTION_REQUESTS, "collectionId", collectionId).increment();
+        meterRegistry.counter(MetricNames.INGESTION_TOTAL, "collectionId", collectionId).increment();
         log.info("ingestion started traceId={} collectionId={} documentId={} stage=received", traceId, collectionId, documentId);
     }
 
     public void onSkipped(String traceId, String collectionId, String documentId) {
-        meterRegistry.counter(MetricNames.INGESTION_SKIPPED, "collectionId", collectionId).increment();
+        meterRegistry.counter(MetricNames.INGESTION_SKIPPED_TOTAL, "collectionId", collectionId).increment();
         log.info("ingestion skipped traceId={} collectionId={} documentId={} stage=dedupe", traceId, collectionId, documentId);
     }
 
@@ -33,7 +33,8 @@ public class IngestionObservationService {
     }
 
     public void onReady(String traceId, String collectionId, String documentId, int chunkCount) {
-        meterRegistry.counter(MetricNames.INGESTION_READY, "collectionId", collectionId).increment();
+        meterRegistry.counter(MetricNames.INGESTION_READY_TOTAL, "collectionId", collectionId).increment();
+        meterRegistry.summary(MetricNames.INGESTION_CHUNK_COUNT, "collectionId", collectionId).record(chunkCount);
         log.info(
                 "ingestion completed traceId={} collectionId={} documentId={} stage=ready chunkCount={}",
                 traceId,
@@ -43,8 +44,19 @@ public class IngestionObservationService {
         );
     }
 
+    public void onCompensation(String traceId, String collectionId, String documentId, String reason) {
+        meterRegistry.counter(MetricNames.INGESTION_COMPENSATION_TOTAL, "collectionId", collectionId).increment();
+        log.warn(
+                "ingestion compensation traceId={} collectionId={} documentId={} stage=compensation reason={}",
+                traceId,
+                collectionId,
+                documentId,
+                reason
+        );
+    }
+
     public void onFailed(String traceId, String collectionId, String documentId, String reason) {
-        meterRegistry.counter(MetricNames.INGESTION_FAILED, "collectionId", collectionId).increment();
+        meterRegistry.counter(MetricNames.INGESTION_FAILURE_TOTAL, "collectionId", collectionId).increment();
         log.error(
                 "ingestion failed traceId={} collectionId={} documentId={} stage=failed reason={}",
                 traceId,

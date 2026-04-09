@@ -20,11 +20,24 @@ jobs:
       - name: Compile
         run: mvn -q -DskipTests compile
 
-      - name: Unit And Architecture Tests
+      - name: Foundation Unit And Architecture Tests
         run: mvn -q "-Dtest=DocumentIdPolicyTest,ChunkIdPolicyTest,IngestionStateMachineTest,QueryProcessorTest,RrfFusionPolicyTest,ProviderConfigurationTest,EvaluationUsesRetrievalTopKTest,ArchitectureBoundaryTest" test
 
-      - name: Contract And Integration Regression
-        run: mvn -q clean "-Dtest=IngestionApiContractTest,IngestionIntegrationTest,QueryApiContractTest,RetrievalPipelineIntegrationTest,EvaluationApiContractTest,EvaluationPersistenceIntegrationTest" test
+      - name: Ingestion Contract And Integration
+        run: mvn -q clean "-Dtest=IngestionApiContractTest,IngestionIntegrationTest,ChunkIdPolicyTest,DocumentIdPolicyTest,IngestionStateMachineTest" test
+
+      - name: Query Contract And Integration
+        run: mvn -q "-Dtest=QueryApiContractTest,RetrievalPipelineIntegrationTest,QueryProcessorTest,RrfFusionPolicyTest" test
+
+      - name: Evaluation Contract And Integration
+        run: mvn -q "-Dtest=EvaluationApiContractTest,EvaluationPersistenceIntegrationTest,EvaluationUsesRetrievalTopKTest" test
+
+      - name: Validate Observability And Golden Set Assets
+        run: |
+          test -f src/test/resources/eval/golden-set.json
+          grep -q '"test_cases"' src/test/resources/eval/golden-set.json
+          grep -q 'rag_retrieval_fallback_total' ops/observability/grafana-dashboard.json
+          grep -q 'rag_ingestion_compensation_total' ops/observability/prometheus.yml
 
       - name: Full Regression Suite
         run: mvn -q test

@@ -61,14 +61,15 @@ class EvaluationPersistenceIntegrationTest extends IntegrationTestContainers {
         Files.createDirectories(testSetPath.getParent());
         Files.writeString(testSetPath, """
                 {
-                  "version": "v1",
-                  "cases": [
+                  "description": "integration regression",
+                  "version": "1.0",
+                  "test_cases": [
                     {
                       "caseId": "eval-001",
                       "query": "hybrid retrieval",
-                      "expectedChunkIds": ["%s"],
-                      "expectedSources": ["target/test-eval-files/eval-doc.md"],
-                      "referenceAnswer": "hybrid retrieval combines semantic matching and keyword matching"
+                      "expected_chunk_ids": ["%s"],
+                      "expected_sources": ["target/test-eval-files/eval-doc.md"],
+                      "reference_answer": "hybrid retrieval combines semantic matching and keyword matching"
                     }
                   ]
                 }
