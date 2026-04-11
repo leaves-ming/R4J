@@ -25,7 +25,9 @@ class RrfFusionPolicyTest {
                     new RagProperties.File("./data/files")
             ),
             new RagProperties.Observability(true, true),
-            new RagProperties.Evaluation(10, "default")
+            new RagProperties.Evaluation(10, "default"),
+            RagProperties.Mcp.disabled(),
+            RagProperties.Advisor.disabled()
     ));
 
     @Test

@@ -1,6 +1,7 @@
 package com.ming.rag.interfaces.http.dto;
 
 import com.ming.rag.domain.response.Citation;
+import com.ming.rag.domain.response.ToolSource;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ public final class QueryDtos {
             boolean empty,
             String answer,
             List<Citation> citations,
+            List<ToolSource> toolSources,
             String traceId,
             Map<String, Object> debug
     ) {

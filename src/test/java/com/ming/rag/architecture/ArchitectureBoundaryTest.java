@@ -44,6 +44,12 @@ class ArchitectureBoundaryTest {
                     .that().haveFullyQualifiedName("com.ming.rag.domain.ingestion.port.ChunkStorePort")
                     .should().dependOnClassesThat().haveFullyQualifiedName("com.ming.rag.domain.ingestion.Chunk");
 
+    @ArchTest
+    static final ArchRule domain_query_ports_should_not_depend_on_infrastructure =
+            noClasses()
+                    .that().resideInAPackage("com.ming.rag.domain.query.port..")
+                    .should().dependOnClassesThat().resideInAPackage("com.ming.rag.infrastructure..");
+
     @Test
     void ragApplicationShouldNotExcludeDatasourceOrFlywayAutoConfiguration() {
         var annotation = RagApplication.class.getAnnotation(SpringBootApplication.class);

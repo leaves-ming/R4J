@@ -7,6 +7,7 @@ public record AnswerResponse(
         boolean empty,
         String answer,
         List<Citation> citations,
+        List<ToolSource> toolSources,
         String traceId,
         Map<String, Object> debug
 ) {

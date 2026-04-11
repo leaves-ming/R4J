@@ -1,10 +1,11 @@
 # rag Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-09
+Auto-generated from all feature plans. Last updated: 2026-04-10
 
 ## Active Technologies
 - PostgreSQL（`document_registry`、`ingestion_job`、`evaluation_*`）, Elasticsearch/OpenSearch（`chunk_record_v1` 检索索引）, 本地文件系统（原始资料） (001-java-rag-monolith)
 - PostgreSQL（`document_registry`、`ingestion_job`、`evaluation_*`）, Elasticsearch/OpenSearch（`chunk_record_v1`）, 本地文件系统（原始资料） (001-java-rag-monolith)
+- PostgreSQL（`document_registry`、`ingestion_job`、`evaluation_*`）, Elasticsearch/OpenSearch（`chunk_record_v1`）, 本地文件系统（原始资料）, 外部静态配置 MCP Server (002-java-rag-mcp-hybrid-query)
 
 - Java 21 + Spring Boot, LangChain4j Spring Boot starters, Spring Boot Actuator, Micrometer, OpenTelemetry (main)
 
@@ -24,10 +25,10 @@ tests/
 Java 21: Follow standard conventions
 
 ## Recent Changes
+- 002-java-rag-mcp-hybrid-query: Added Java 21 + Spring Boot, LangChain4j Spring Boot starters, Spring Boot Actuator, Micrometer, OpenTelemetry
 - 001-java-rag-monolith: Added Java 21 + Spring Boot, LangChain4j Spring Boot starters, Spring Boot Actuator, Micrometer, OpenTelemetry
 - 001-java-rag-monolith: Added Java 21 + Spring Boot, LangChain4j Spring Boot starters, Spring Boot Actuator, Micrometer, OpenTelemetry
 
-- main: Added Java 21 + Spring Boot, LangChain4j Spring Boot starters, Spring Boot Actuator, Micrometer, OpenTelemetry
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

@@ -34,3 +34,13 @@ rag:
   evaluation:
     default-top-k: 10
     evaluator-name: default-evaluator
+  mcp:
+    enabled: false
+    servers: []
+  advisor:
+    enabled: false
+    fallback-enabled: true
+    never-rules: []
+    prefer-rules: []
+    must-rules: []
+    realtime-patterns: []

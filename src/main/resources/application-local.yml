@@ -7,6 +7,16 @@ spring:
     enabled: true
 
 rag:
+  advisor:
+    enabled: false
+    fallback-enabled: true
+    never-rules: []
+    prefer-rules: []
+    must-rules: []
+    realtime-patterns: []
+  mcp:
+    enabled: false
+    servers: []
   storage:
     metadata:
       url: ${RAG_STORAGE_METADATA_URL:jdbc:postgresql://localhost:5432/rag}

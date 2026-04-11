@@ -35,6 +35,7 @@ public class QueryController {
                 response.empty(),
                 response.answer(),
                 response.citations(),
+                response.toolSources(),
                 response.traceId(),
                 response.debug()
         );

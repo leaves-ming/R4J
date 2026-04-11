@@ -4,7 +4,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import java.time.Duration;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -17,7 +20,9 @@ public record RagProperties(
         @NotNull @Valid Ai ai,
         @NotNull @Valid Storage storage,
         @NotNull @Valid Observability observability,
-        @NotNull @Valid Evaluation evaluation
+        @NotNull @Valid Evaluation evaluation,
+        @NotNull @Valid Mcp mcp,
+        @NotNull @Valid Advisor advisor
 ) {
 
     public record Ingestion(
@@ -116,6 +121,59 @@ public record RagProperties(
     public record Evaluation(
             @Min(1) int defaultTopK,
             @NotBlank String evaluatorName
+    ) {
+    }
+
+    public record Mcp(
+            boolean enabled,
+            @NotNull List<@Valid Server> servers
+    ) {
+        public static Mcp disabled() {
+            return new Mcp(false, List.of());
+        }
+    }
+
+    public record Server(
+            @NotBlank String serverId,
+            boolean enabled,
+            @NotBlank String transport,
+            String endpoint,
+            List<String> command,
+            @NotNull Duration timeout,
+            @NotEmpty List<@NotBlank String> allowedTools,
+            int toolPriority
+    ) {
+        @AssertTrue(message = "MCP server must define endpoint for http transport or command for stdio transport")
+        public boolean hasConnectionTarget() {
+            if (!enabled) {
+                return true;
+            }
+            if ("http".equalsIgnoreCase(transport)) {
+                return hasText(endpoint);
+            }
+            if ("stdio".equalsIgnoreCase(transport)) {
+                return command != null && !command.isEmpty() && command.stream().allMatch(RagProperties::hasText);
+            }
+            return hasText(endpoint) || (command != null && !command.isEmpty());
+        }
+    }
+
+    public record Advisor(
+            boolean enabled,
+            boolean fallbackEnabled,
+            @NotNull List<@Valid Rule> neverRules,
+            @NotNull List<@Valid Rule> preferRules,
+            @NotNull List<@Valid Rule> mustRules,
+            @NotNull List<@NotBlank String> realtimePatterns
+    ) {
+        public static Advisor disabled() {
+            return new Advisor(false, true, List.of(), List.of(), List.of(), List.of());
+        }
+    }
+
+    public record Rule(
+            @NotBlank String id,
+            @NotEmpty List<@NotBlank String> keywords
     ) {
     }
 

@@ -90,7 +90,9 @@ class ProviderConfigurationTest {
                         new RagProperties.File("./data/files")
                 ),
                 new RagProperties.Observability(true, true),
-                new RagProperties.Evaluation(10, "default-evaluator")
+                new RagProperties.Evaluation(10, "default-evaluator"),
+                RagProperties.Mcp.disabled(),
+                RagProperties.Advisor.disabled()
         );
 
         var violations = validator.validate(properties);
@@ -116,7 +118,9 @@ class ProviderConfigurationTest {
                         new RagProperties.File("./data/files")
                 ),
                 new RagProperties.Observability(true, true),
-                new RagProperties.Evaluation(10, "default-evaluator")
+                new RagProperties.Evaluation(10, "default-evaluator"),
+                RagProperties.Mcp.disabled(),
+                RagProperties.Advisor.disabled()
         );
 
         var violations = validator.validate(properties);
@@ -141,7 +145,9 @@ class ProviderConfigurationTest {
                         new RagProperties.File("./data/files")
                 ),
                 new RagProperties.Observability(true, true),
-                new RagProperties.Evaluation(10, "default-evaluator")
+                new RagProperties.Evaluation(10, "default-evaluator"),
+                RagProperties.Mcp.disabled(),
+                RagProperties.Advisor.disabled()
         );
     }
 

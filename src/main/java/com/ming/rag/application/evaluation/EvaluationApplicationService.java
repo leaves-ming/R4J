@@ -3,6 +3,7 @@ package com.ming.rag.application.evaluation;
 import com.ming.rag.bootstrap.config.RagProperties;
 import com.ming.rag.application.query.QueryCommand;
 import com.ming.rag.application.query.RetrievalPipelineService;
+import com.ming.rag.domain.query.ToolContext;
 import com.ming.rag.domain.evaluation.EvalQueryResult;
 import com.ming.rag.domain.evaluation.EvalReport;
 import com.ming.rag.domain.evaluation.port.EvaluationReportPort;
@@ -84,7 +85,13 @@ public class EvaluationApplicationService {
                     false
             ));
             evaluationObservationService.onAnswerCase(traceId, collectionId, testCase.query());
-            var generated = answerGeneratorPort.generate(testCase.query(), retrievalResult.topKResults(), retrievalResult.traceId(), false);
+            var generated = answerGeneratorPort.generate(
+                    testCase.query(),
+                    retrievalResult.topKResults(),
+                    ToolContext.empty(),
+                    retrievalResult.traceId(),
+                    false
+            );
             var retrievedIds = retrievalResult.topKResults().stream().map(item -> item.chunkId()).toList();
             evaluationObservationService.onScoreCase(traceId, collectionId, testCase.query());
             var metrics = score(testCase, retrievedIds, generated.answer());

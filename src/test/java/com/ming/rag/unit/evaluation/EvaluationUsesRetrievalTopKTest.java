@@ -39,10 +39,11 @@ class EvaluationUsesRetrievalTopKTest {
                 "trace",
                 Map.of()
         ));
-        AnswerGeneratorPort answerGeneratorPort = (query, rankedResults, traceId, debug) -> new AnswerResponse(
+        AnswerGeneratorPort answerGeneratorPort = (query, rankedResults, toolContext, traceId, debug) -> new AnswerResponse(
                 false,
                 "answer",
                 List.of(new Citation(1, "chunk-citation", "doc-2", "other.md", null, 0.5, "snippet", Map.of())),
+                List.of(),
                 traceId,
                 Map.of()
         );
@@ -122,7 +123,9 @@ class EvaluationUsesRetrievalTopKTest {
                         new RagProperties.File("./data/files")
                 ),
                 new RagProperties.Observability(true, true),
-                new RagProperties.Evaluation(10, "default-evaluator")
+                new RagProperties.Evaluation(10, "default-evaluator"),
+                RagProperties.Mcp.disabled(),
+                RagProperties.Advisor.disabled()
         );
     }
 

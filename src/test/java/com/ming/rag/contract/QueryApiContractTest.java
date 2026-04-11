@@ -66,6 +66,9 @@ class QueryApiContractTest extends IntegrationTestContainers {
                 .andExpect(jsonPath("$.answer").isString())
                 .andExpect(jsonPath("$.citations[0].chunkId").isString())
                 .andExpect(jsonPath("$.citations[0].documentId").isString())
+                .andExpect(jsonPath("$.toolSources").isArray())
+                .andExpect(jsonPath("$.debug.advisorRoute").value("never"))
+                .andExpect(jsonPath("$.debug.mcpInvoked").value(false))
                 .andExpect(jsonPath("$.traceId").isString());
     }
 

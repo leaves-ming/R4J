@@ -19,6 +19,9 @@ public final class MetricNames {
     public static final String LLM_LATENCY_MS = "rag.llm_latency_ms";
     public static final String RETRIEVAL_FALLBACK_TOTAL = "rag.retrieval_fallback_total";
     public static final String QUERY_RESPONSE_TOTAL = "rag.query_response_total";
+    public static final String MCP_LATENCY_MS = "rag.mcp_latency_ms";
+    public static final String MCP_FAILURE_TOTAL = "rag.mcp_failure_total";
+    public static final String MCP_ADVISOR_DECISION_TOTAL = "rag.mcp_advisor_decision_total";
 
     public static final String EVALUATION_RUN_TOTAL = "rag.evaluation_run_total";
     public static final String EVALUATION_CASE_TOTAL = "rag.evaluation_case_total";
